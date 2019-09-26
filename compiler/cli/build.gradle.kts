@@ -27,6 +27,7 @@ dependencies {
     compile(toolsJar())
     compileOnly(intellijCoreDep()) { includeJars("intellij-core") }
     compileOnly(intellijDep()) { includeIntellijCoreJarDependencies(project) }
+    compileOnly(jpsStandalone()) { includeJars("jps-builders", "jps-builders-6") }
 
     testCompile(project(":compiler:backend"))
     testCompile(project(":compiler:cli"))
