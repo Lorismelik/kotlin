@@ -55,6 +55,22 @@ messages/**)
 -dontwarn org.jetbrains.annotations.Mutable
 -dontwarn com.intellij.util.io.TarUtil
 -dontwarn com.intellij.util.io.Compressor$Tar
+# Temporary JPS/javac related stuff
+-dontwarn com.google.protobuf.**
+-dontwarn io.netty.**
+-dontwarn groovy.lang.**
+-dontwarn org.codehaus.groovy.**
+-dontwarn com.jgoodies.forms.layout.**
+-dontwarn net.n3.nanoxml.**
+-dontwarn org.jetbrains.idea.maven.aether.**
+-dontwarn org.eclipse.aether.**
+-dontwarn org.codehaus.gant.**
+-dontwarn org.jetbrains.jps.api.**
+-dontwarn com.sampullara.cli.**
+-dontwarn org.apache.tools.ant.**
+-dontwarn groovy.util.**
+-dontwarn org.jetbrains.jps.javac.JavacRemoteProto*
+-dontwarn org.jetbrains.jps.gant.**
 
 # Annotations from intellijCore/annotations.jar that not presented in org.jetbrains.annotations
 -dontwarn org.jetbrains.annotations.Async*

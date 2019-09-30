@@ -194,6 +194,8 @@ dependencies {
     fatJarContents(intellijCoreDep()) { includeJars("intellij-core") }
     fatJarContents(intellijDep()) { includeJars("jna-platform") }
 
+    fatJarContents(jpsStandalone()) { includeJars("jps-builders", "jps-builders-6") }
+
     if (Platform.P192.orHigher()) {
         fatJarContents(intellijDep()) { includeJars("lz4-java-1.6.0") }
     } else {
