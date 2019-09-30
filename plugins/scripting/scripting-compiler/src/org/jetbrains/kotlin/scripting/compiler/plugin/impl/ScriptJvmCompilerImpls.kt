@@ -145,7 +145,9 @@ private fun doCompile(
         if (dependency is JvmDependencyFromClassLoader) {
             PackageFragmentProviderExtension.registerExtension(
                 context.environment.project,
-                PackageFragmentFromClassLoaderProviderExtension(dependency.classLoaderGetter, context.baseScriptCompilationConfiguration)
+                PackageFragmentFromClassLoaderProviderExtension(
+                    dependency.classLoaderGetter, context.baseScriptCompilationConfiguration, context.environment.configuration
+                )
             )
         }
     }
