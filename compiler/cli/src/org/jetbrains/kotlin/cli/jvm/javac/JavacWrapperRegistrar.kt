@@ -61,7 +61,7 @@ object JavacWrapperRegistrar {
 
         val context = Context()
         JavacLogger.preRegister(context, messageCollector)
-        val standardFileManager = JavacFileManager(context, false, null)
+        val standardFileManager = JavacFileManager(context, false, Charset.forName("UTF-8"))
         standardFileManager.setSymbolFileEnabled(false)
         val jpsContext = object : JpsJavacFileManager.Context {
             override fun reportMessage(kind: Diagnostic.Kind, message: String) {
