@@ -27,6 +27,9 @@ import org.jetbrains.kotlin.konan.KonanVersion
 import org.jetbrains.kotlin.konan.target.HostManager
 import org.jetbrains.kotlin.konan.target.KonanTarget
 import org.jetbrains.kotlin.konan.util.DependencyDirectories
+import java.lang.reflect.InvocationTargetException
+import java.net.URL
+import java.net.URLClassLoader
 import java.util.*
 
 /** Copied from Kotlin/Native repository. */
@@ -123,24 +126,46 @@ internal abstract class KonanCliRunner(
             )
         }
 
-        project.javaexec { spec ->
-            spec.main = mainClass
-            spec.classpath = classpath
-            spec.jvmArgs(jvmArgs)
-            spec.systemProperties(
-                System.getProperties().asSequence()
-                    .map { (k, v) -> k.toString() to v.toString() }
-                    .filter { (k, _) -> k !in blacklistProperties }
-                    .escapeQuotesForWindows()
-                    .toMap()
-            )
-            spec.systemProperties(additionalSystemProperties)
-            spec.args(listOf(toolName) + transformArgs(args))
-            blacklistEnvironment.forEach { spec.environment.remove(it) }
-            spec.environment(environment)
+        val oldProperties = mutableMapOf<String, String>()
+        additionalSystemProperties.forEach {
+            oldProperties[it.key] = System.getProperty(it.key) ?: ""
+        }
+        System.getProperties().asSequence()
+            .map { (k, v) -> k.toString() to v.toString() }
+            .filter { (k, _) -> k in blacklistProperties }
+            .forEach { (k, v) ->
+                oldProperties[k] = v
+                System.setProperty(k, "")
+            }
+
+        additionalSystemProperties.forEach { System.setProperty(it.key, it.value) }
+
+        if (konanCompilerClassLoader == null) {
+            synchronized(lockObject) {
+                if (konanCompilerClassLoader == null) {
+                    val arrayOfURLs = classpath.map { URL("file://${it.absolutePath}") }.toTypedArray()
+                    konanCompilerClassLoader = URLClassLoader(arrayOfURLs, null)
+                }
+            }
+        }
+
+        val mainClass = konanCompilerClassLoader!!.loadClass(mainClass)
+        val mainMethod = mainClass.methods.single { it.name == "daemonMain" }
+
+        try {
+            mainMethod.invoke(null, (listOf(toolName) + transformArgs(args)).toTypedArray())
+        } catch (t: InvocationTargetException) {
+            throw t.targetException
+        } finally {
+            oldProperties.forEach { System.setProperty(it.key, it.value) }
         }
     }
 }
+
+private val lockObject = Any()
+
+@Volatile
+private var konanCompilerClassLoader: ClassLoader? = null
 
 internal class KonanInteropRunner(project: Project, additionalJvmArgs: List<String> = emptyList()) :
     KonanCliRunner("cinterop", "Kotlin/Native cinterop tool", project, additionalJvmArgs) {
