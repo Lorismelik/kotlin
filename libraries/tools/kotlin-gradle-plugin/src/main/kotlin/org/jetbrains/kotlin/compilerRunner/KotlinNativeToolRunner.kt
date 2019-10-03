@@ -131,7 +131,7 @@ internal abstract class KonanCliRunner(
         additionalSystemProperties.forEach {
             oldProperties[it.key] = System.getProperty(it.key) ?: ""
         }
-        System.getProperties().asSequence()
+        System.getProperties().toList()
             .map { (k, v) -> k.toString() to v.toString() }
             .filter { (k, _) -> k in blacklistProperties }
             .forEach { (k, v) ->
