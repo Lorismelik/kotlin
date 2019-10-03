@@ -27,6 +27,7 @@ import org.jetbrains.kotlin.konan.KonanVersion
 import org.jetbrains.kotlin.konan.target.HostManager
 import org.jetbrains.kotlin.konan.target.KonanTarget
 import org.jetbrains.kotlin.konan.util.DependencyDirectories
+import java.io.File
 import java.lang.reflect.InvocationTargetException
 import java.net.URL
 import java.net.URLClassLoader
@@ -135,7 +136,7 @@ internal abstract class KonanCliRunner(
             .filter { (k, _) -> k in blacklistProperties }
             .forEach { (k, v) ->
                 oldProperties[k] = v
-                System.setProperty(k, "")
+                System.clearProperty(k)
             }
 
         additionalSystemProperties.forEach { System.setProperty(it.key, it.value) }
@@ -143,7 +144,7 @@ internal abstract class KonanCliRunner(
         if (konanCompilerClassLoader == null) {
             synchronized(lockObject) {
                 if (konanCompilerClassLoader == null) {
-                    val arrayOfURLs = classpath.map { URL("file://${it.absolutePath}") }.toTypedArray()
+                    val arrayOfURLs = classpath.map { File(it.absolutePath).toURI().toURL() }.toTypedArray()
                     konanCompilerClassLoader = URLClassLoader(arrayOfURLs, null)
                 }
             }
@@ -157,7 +158,11 @@ internal abstract class KonanCliRunner(
         } catch (t: InvocationTargetException) {
             throw t.targetException
         } finally {
-            oldProperties.forEach { System.setProperty(it.key, it.value) }
+            oldProperties.forEach {
+                if (it.value == "")
+                    System.clearProperty(it.key)
+                else System.setProperty(it.key, it.value)
+            }
         }
     }
 }
