@@ -35,18 +35,18 @@ abstract class KotlinPsiChainBuilderTestCase(private val relativePath: String) :
     override fun setUp() {
         super.setUp()
         ApplicationManager.getApplication().runWriteAction {
-            if (ProjectLibraryTable.getInstance(project).getLibraryByName(stdLibName) == null) {
+            if (ProjectLibraryTable.getInstance(LightPlatformTestCase.getProject()).getLibraryByName(stdLibName) == null) {
                 val stdLibPath = ForTestCompileRuntime.runtimeJarForTests()
                 PsiTestUtil.addLibrary(
                     testRootDisposable,
-                    module,
+                    LightPlatformTestCase.getModule(),
                     stdLibName,
                     stdLibPath.parent,
                     stdLibPath.name
                 )
             }
         }
-        LibraryModificationTracker.getInstance(project).incModificationCount()
+        LibraryModificationTracker.getInstance(LightPlatformTestCase.getProject()).incModificationCount()
     }
 
 

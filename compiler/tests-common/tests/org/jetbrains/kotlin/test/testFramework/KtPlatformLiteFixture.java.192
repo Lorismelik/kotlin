@@ -35,8 +35,7 @@ public abstract class KtPlatformLiteFixture extends KtUsefulTestCase {
     @Override
     protected void setUp() throws Exception {
         super.setUp();
-        // FIXME: There is no `Extensions.cleanRootArea` in 193
-        // Extensions.cleanRootArea(getTestRootDisposable());
+        Extensions.cleanRootArea(getTestRootDisposable());
     }
 
     public static MockApplicationEx getApplication() {
