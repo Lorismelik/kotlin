@@ -167,7 +167,7 @@ class JavacWrapper(
         if (javaFilesNumber == 0) return true
 
         setClassPathForCompilation(outDir)
-        makeOutputDirectoryClassesVisible()
+        //makeOutputDirectoryClassesVisible()
 
         context.get(Log.outKey)?.println(
             "Compiling $javaFilesNumber Java source files" +
