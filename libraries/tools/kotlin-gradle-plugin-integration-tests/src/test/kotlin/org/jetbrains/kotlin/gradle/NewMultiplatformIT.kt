@@ -19,6 +19,7 @@ import org.jetbrains.kotlin.gradle.util.*
 import org.jetbrains.kotlin.konan.target.CompilerOutputKind
 import org.jetbrains.kotlin.konan.target.HostManager
 import org.junit.Assert
+import org.junit.Assume
 import org.junit.Ignore
 import org.junit.Test
 import java.util.jar.JarFile
@@ -2146,5 +2147,58 @@ class NewMultiplatformIT : BaseGradleIT() {
             checkIntegrationTestOutput("jvm")
             checkIntegrationTestOutput(nativeHostTargetName)
         }
+    }
+
+    private fun doCommonNativeTest(
+        projectName: String,
+        libTargets: List<String>,
+        appTargets: List<String>
+    ) = with(transformProjectWithPluginsDsl(projectName, gradleVersion, "new-mpp-common-native")) {
+        val libCompileTasks = libTargets.map { ":lib:compileKotlin${it.capitalize()}" }
+        val appCompileTasks = appTargets.map { ":app:compileKotlin${it.capitalize()}" }
+        val appLinkFrameworkTasks = appTargets.map { ":app:linkDebugFramework${it.capitalize()}" }
+        val appLinkTestTasks = appTargets.map { ":app:linkDebugTest${it.capitalize()}" }
+
+        build(":lib:publish") {
+            assertSuccessful()
+            assertTasksExecuted(libCompileTasks)
+            libTargets.forEach {
+                assertContains("Configuring $it")
+                assertFileExists("lib/build/classes/kotlin/$it/main/lib.klib")
+            }
+        }
+
+        build(":app:build", *appLinkTestTasks.toTypedArray()) {
+            assertSuccessful()
+            assertTasksExecuted(appCompileTasks)
+            assertTasksExecuted(appLinkFrameworkTasks)
+            assertTasksExecuted(appLinkTestTasks)
+
+            appTargets.forEach {
+                assertFileExists("app/build/classes/kotlin/$it/main/app.klib")
+                assertFileExists("app/build/bin/$it/debugFramework")
+                assertFileExists("app/build/bin/$it/debugTest")
+            }
+        }
+    }
+
+    @Test
+    fun testCommonNative() {
+        Assume.assumeTrue(HostManager.hostIsMac)
+        doCommonNativeTest(
+            "common-ios",
+            libTargets = listOf("iosLibDevice", "iosLibSimulator"),
+            appTargets = listOf("iosDevice", "iosSimulator")
+        )
+        doCommonNativeTest(
+            "common-tvos",
+            libTargets = listOf("tvosLibDevice", "tvosLibSimulator"),
+            appTargets = listOf("tvosDevice", "tvosSimulator")
+        )
+        doCommonNativeTest(
+            "common-watchos",
+            libTargets = listOf("watchosLibDevice32", "watchosLibDevice64", "watchosLibSimulator"),
+            appTargets = listOf("watchosDevice32", "watchosDevice64", "watchosSimulator")
+        )
     }
 }
