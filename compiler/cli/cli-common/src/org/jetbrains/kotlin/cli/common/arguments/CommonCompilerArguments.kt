@@ -108,6 +108,9 @@ abstract class CommonCompilerArguments : CommonToolArguments() {
     @Argument(value = "-Xno-check-actual", description = "Do not check presence of 'actual' modifier in multi-platform projects")
     var noCheckActual: Boolean by FreezableVar(false)
 
+    @Argument(value = "-Xallow-expect-without-actual", description = "Do not check presence of 'actual' counterpart for an 'expect' declaration in multi-platform projects")
+    var allowExpectWithoutActual: Boolean by FreezableVar(false)
+
     @Argument(
         value = "-Xintellij-plugin-root",
         valueDescription = "<path>",
@@ -308,6 +311,7 @@ abstract class CommonCompilerArguments : CommonToolArguments() {
         return HashMap<AnalysisFlag<*>, Any>().apply {
             put(AnalysisFlags.skipMetadataVersionCheck, skipMetadataVersionCheck)
             put(AnalysisFlags.multiPlatformDoNotCheckActual, noCheckActual)
+            put(AnalysisFlags.multiPlatformAllowExpectWithoutActual, allowExpectWithoutActual)
             put(AnalysisFlags.allowKotlinPackage, allowKotlinPackage)
             put(AnalysisFlags.experimental, experimental?.toList().orEmpty())
             put(AnalysisFlags.useExperimental, useExperimental?.toList().orEmpty())

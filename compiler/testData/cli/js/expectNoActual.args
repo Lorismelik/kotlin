@@ -1,0 +1,7 @@
+$TESTDATA_DIR$/expectNoActual.kt
+-meta-info
+-Xmetadata-only
+-Xmulti-platform
+-Xallow-expect-without-actual
+-output
+$TEMP_DIR$/expectNoActual/expectNoActual.js

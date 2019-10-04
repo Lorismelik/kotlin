@@ -62,7 +62,10 @@ class ExpectedActualDeclarationChecker(
         if (descriptor !is MemberDescriptor || DescriptorUtils.isEnumEntry(descriptor)) return
 
         if (descriptor.isExpect) {
-            checkExpectedDeclarationHasProperActuals(declaration, descriptor, context.trace, context.expectActualTracker)
+            val allowExpectWithoutActual = context.languageVersionSettings.getFlag(AnalysisFlags.multiPlatformAllowExpectWithoutActual)
+            if (!allowExpectWithoutActual) {
+                checkExpectedDeclarationHasProperActuals(declaration, descriptor, context.trace, context.expectActualTracker)
+            }
         } else {
             val checkActual = !context.languageVersionSettings.getFlag(AnalysisFlags.multiPlatformDoNotCheckActual)
 

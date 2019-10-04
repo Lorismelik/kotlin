@@ -1,0 +1,5 @@
+$TESTDATA_DIR$/expectNoActual.kt
+-Xmulti-platform
+-Xallow-expect-without-actual
+-d
+$TEMP_DIR$

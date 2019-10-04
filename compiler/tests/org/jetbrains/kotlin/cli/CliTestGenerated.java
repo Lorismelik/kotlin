@@ -186,6 +186,11 @@ public class CliTestGenerated extends AbstractCliTest {
             runTest("compiler/testData/cli/jvm/emptySources.args");
         }
 
+        @TestMetadata("expectNoActual.args")
+        public void testExpectNoActual() throws Exception {
+            runTest("compiler/testData/cli/jvm/expectNoActual.args");
+        }
+
         @TestMetadata("experimentalAndUseExperimentalWithSameAnnotation.args")
         public void testExperimentalAndUseExperimentalWithSameAnnotation() throws Exception {
             runTest("compiler/testData/cli/jvm/experimentalAndUseExperimentalWithSameAnnotation.args");
@@ -732,6 +737,11 @@ public class CliTestGenerated extends AbstractCliTest {
         @TestMetadata("emptySources.args")
         public void testEmptySources() throws Exception {
             runTest("compiler/testData/cli/js/emptySources.args");
+        }
+
+        @TestMetadata("expectNoActual.args")
+        public void testExpectNoActual() throws Exception {
+            runTest("compiler/testData/cli/js/expectNoActual.args");
         }
 
         @TestMetadata("inlineCycle.args")
