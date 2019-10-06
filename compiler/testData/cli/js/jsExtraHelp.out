@@ -8,6 +8,7 @@ where advanced options include:
   -Xir-produce-only={ klib, js } Type of output to produce. Overrides -meta-info argument.
   -Xmetadata-only            Generate *.meta.js and *.kjsm files only
   -Xtyped-arrays             Translate primitive arrays to JS typed arrays
+  -Xallow-expect-without-actual Do not check presence of 'actual' counterpart for an 'expect' declaration in multi-platform projects
   -Xallow-kotlin-package     Allow compiling code in package 'kotlin' and allow not requiring kotlin.stdlib in module-info
   -Xallow-result-return-type Allow compiling code when `kotlin.Result` is used as a return type
   -Xcheck-phase-conditions   Check pre- and postconditions on phases

@@ -70,6 +70,7 @@ where advanced options include:
   -Xuse-old-class-files-reading Use old class files reading implementation. This may slow down the build and cause problems with Groovy interop.
                              Should be used in case of problems with the new implementation
   -Xuse-type-table           Use type table in metadata serialization
+  -Xallow-expect-without-actual Do not check presence of 'actual' counterpart for an 'expect' declaration in multi-platform projects
   -Xallow-kotlin-package     Allow compiling code in package 'kotlin' and allow not requiring kotlin.stdlib in module-info
   -Xallow-result-return-type Allow compiling code when `kotlin.Result` is used as a return type
   -Xcheck-phase-conditions   Check pre- and postconditions on phases
