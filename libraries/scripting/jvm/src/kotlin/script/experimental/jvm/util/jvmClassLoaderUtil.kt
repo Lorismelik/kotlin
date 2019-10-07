@@ -34,7 +34,9 @@ internal fun forAllMatchingFilesInDirectory(baseDir: File, namePattern: String, 
         val root = if (patternDirStart <= 0) baseDir else baseDir.resolve(namePattern.substring(0, patternDirStart))
         if (root.exists() && root.isDirectory) {
             val re = namePatternToRegex(namePattern.substring(patternDirStart + 1))
-            root.walkTopDown().filter { re.matches(it.path) }.forEach { file ->
+            root.walkTopDown().filter {
+                re.matches(it.relativeToOrSelf(root).path)
+            }.forEach { file ->
                 body(file.relativeToOrSelf(baseDir).path, file.inputStream())
             }
         }
