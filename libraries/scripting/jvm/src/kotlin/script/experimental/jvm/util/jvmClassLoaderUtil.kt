@@ -6,7 +6,10 @@
 package kotlin.script.experimental.jvm.util
 
 import java.io.File
+import java.io.FileInputStream
 import java.io.InputStream
+import java.util.jar.JarFile
+import java.util.jar.JarInputStream
 
 fun ClassLoader.forAllMatchingFiles(namePattern: String, body: (String, InputStream) -> Unit) {
 
@@ -38,6 +41,37 @@ internal fun forAllMatchingFilesInDirectory(baseDir: File, namePattern: String, 
                 re.matches(it.relativeToOrSelf(root).path)
             }.forEach { file ->
                 body(file.relativeToOrSelf(baseDir).path, file.inputStream())
+            }
+        }
+    }
+}
+
+internal fun forAllMatchingFilesInJarStream(jarInputStream: JarInputStream, nameRegex: Regex, body: (String, InputStream) -> Unit) {
+    do {
+        val entry = jarInputStream.nextJarEntry
+        if (entry != null) {
+            try {
+                if (!entry.isDirectory && nameRegex.matches(entry.name)) {
+                    body(entry.name, jarInputStream)
+                }
+            } finally {
+                jarInputStream.closeEntry()
+            }
+        }
+    } while (entry != null)
+}
+
+internal fun forAllMatchingFilesInJar(jarFile: File, nameRegex: Regex, body: (String, InputStream) -> Unit) {
+    JarInputStream(FileInputStream(jarFile)).use {
+        forAllMatchingFilesInJarStream(it, nameRegex, body)
+    }
+}
+
+internal fun forAllMatchingFilesInJarFile(jarFile: JarFile, nameRegex: Regex, body: (String, InputStream) -> Unit) {
+    jarFile.entries().asSequence().forEach { entry ->
+        if (!entry.isDirectory && nameRegex.matches(entry.name)) {
+            jarFile.getInputStream(entry).use { stream ->
+                body(entry.name, stream)
             }
         }
     }

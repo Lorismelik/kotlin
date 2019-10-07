@@ -8,10 +8,9 @@ package kotlin.script.experimental.jvm.test
 import junit.framework.TestCase
 import org.junit.Test
 import java.io.File
-import kotlin.script.experimental.jvm.util.forAllMatchingFilesInDirectory
-import kotlin.script.experimental.jvm.util.namePatternToRegex
-import kotlin.script.experimental.jvm.util.pathElementPattern
-import kotlin.script.experimental.jvm.util.pathSeparatorPattern
+import java.util.jar.JarFile
+import java.util.jar.JarInputStream
+import kotlin.script.experimental.jvm.util.*
 
 class UtilsTest : TestCase() {
 
@@ -42,7 +41,7 @@ class UtilsTest : TestCase() {
             forAllMatchingFilesInDirectory(rootDir, pattern) { path, stream ->
                 res.add(path to stream.reader().readText())
             }
-            assertEquals(paths.asIterable().toSet(), res.mapTo(HashSet()) { it.first })
+            assertEquals(paths.toSet(), res.mapTo(HashSet()) { it.first })
 
             res.forEach { (path, bytes) ->
                 val data = File(path).readText()
@@ -82,9 +81,46 @@ class UtilsTest : TestCase() {
         assertEquals(allExpectedSrcKtFiles, allSrcKtFiles)
     }
 
+    @Test
+    fun testSelectFilesInJar() {
+
+        fun JarFile.filesBy(pattern: String): Map<String, String> {
+            val res = HashMap<String, String>()
+            forAllMatchingFilesInJarFile(this, namePatternToRegex(pattern)) { path, stream ->
+                res[path] = stream.reader().readText().trim()
+            }
+            return res
+        }
+
+        fun JarInputStream.filesBy(pattern: String): Map<String, String> {
+            val res = HashMap<String, String>()
+            forAllMatchingFilesInJarStream(this, namePatternToRegex(pattern)) { path, stream ->
+                res[path] = stream.reader().readText().trim()
+            }
+            return res
+        }
+
+        fun assertFiles(actual: Map<String, String>, vararg expected: Pair<String, String>) {
+            val expectedAsMap = expected.toMap()
+            assertEquals(expectedAsMap, actual)
+        }
+
+        fun assertMatchingFilesInJarTwoWay(jar: File, pattern: String, vararg expected: Pair<String, String>) {
+            assertFiles( JarFile(jar).filesBy(pattern), *expected)
+            assertFiles( JarInputStream(jar.inputStream()).use { it.filesBy(pattern) }, *expected)
+        }
+
+        val jar = File("testData/testJar.jar")
+        assertTrue(jar.exists())
+
+        assertMatchingFilesInJarTwoWay(jar, "META-INF/*.kotlin_module", "META-INF/abc.kotlin_module" to "module")
+        assertMatchingFilesInJarTwoWay(jar, "META-INF/*.kotlin") // none
+        assertMatchingFilesInJarTwoWay(jar, "**/*.class", "a/b/c/d1.class" to "d1", "a/b/c/d1\$s1.class" to "d1s1")
+        assertMatchingFilesInJarTwoWay(jar, "**/*\$*.class", "a/b/c/d1\$s1.class" to "d1s1")
+    }
+
     private fun assertPattern(expected: String, pattern: String) {
         assertEquals(expected, namePatternToRegex(pattern).pattern)
     }
 
 }
-
