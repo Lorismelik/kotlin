@@ -42,7 +42,7 @@ class UtilsTest : TestCase() {
             forAllMatchingFilesInDirectory(rootDir, pattern) { path, stream ->
                 res.add(path to stream.reader().readText())
             }
-            assertEquals(paths.asIterable().toSet(), res.mapTo(HashSet()) { it.first } )
+            assertEquals(paths.asIterable().toSet(), res.mapTo(HashSet()) { it.first })
 
             res.forEach { (path, bytes) ->
                 val data = File(path).readText()
