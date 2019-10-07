@@ -31,6 +31,7 @@ import java.io.File
 import java.lang.reflect.InvocationTargetException
 import java.net.URLClassLoader
 import java.util.*
+import java.util.concurrent.ConcurrentHashMap
 
 /** Copied from Kotlin/Native repository. */
 
@@ -161,16 +162,12 @@ internal abstract class KonanCliRunner(
 
             additionalSystemProperties.forEach { System.setProperty(it.key, it.value) }
 
-            if (konanCompilerClassLoader == null) {
-                synchronized(lockObject) {
-                    if (konanCompilerClassLoader == null) {
-                        val arrayOfURLs = classpath.map { File(it.absolutePath).toURI().toURL() }.toTypedArray()
-                        konanCompilerClassLoader = URLClassLoader(arrayOfURLs, null)
-                    }
-                }
+            val konanCompilerClassLoader = konanCompilerClassLoadersMap.computeIfAbsent(project.konanHome) {
+                val arrayOfURLs = classpath.map { File(it.absolutePath).toURI().toURL() }.toTypedArray()
+                URLClassLoader(arrayOfURLs, null)
             }
 
-            val mainClass = konanCompilerClassLoader!!.loadClass(mainClass)
+            val mainClass = konanCompilerClassLoader.loadClass(mainClass)
             val mainMethod = mainClass.methods.single { it.name == "daemonMain" }
 
             try {
@@ -189,10 +186,7 @@ internal abstract class KonanCliRunner(
     }
 }
 
-private val lockObject = Any()
-
-@Volatile
-private var konanCompilerClassLoader: ClassLoader? = null
+private val konanCompilerClassLoadersMap = ConcurrentHashMap<String, ClassLoader>()
 
 internal class KonanInteropRunner(project: Project, additionalJvmArgs: List<String> = emptyList()) :
     KonanCliRunner("cinterop", "Kotlin/Native cinterop tool", project, additionalJvmArgs) {
