@@ -59,8 +59,8 @@ interface KotlinTargetContainerWithNativeShortcuts : KotlinTargetContainerWithPr
         configure: KotlinNativeTarget.() -> Unit = {}
     ) {
         val targets = listOf(
-            iosArm64("${namePrefix}Device"),
-            iosX64("${namePrefix}Simulator")
+            iosArm64("${namePrefix}Arm64"),
+            iosX64("${namePrefix}X64")
         )
         createIntermediateSourceSets(namePrefix, targets.defaultSourceSets(), mostCommonSourceSets())
         targets.forEach { it.configure() }
@@ -76,8 +76,8 @@ interface KotlinTargetContainerWithNativeShortcuts : KotlinTargetContainerWithPr
         configure: KotlinNativeTarget.() -> Unit
     ) {
         val targets = listOf(
-            tvosArm64("${namePrefix}Device"),
-            tvosX64("${namePrefix}Simulator")
+            tvosArm64("${namePrefix}Arm64"),
+            tvosX64("${namePrefix}X64")
         )
         createIntermediateSourceSets(namePrefix, targets.defaultSourceSets(), mostCommonSourceSets())
         targets.forEach { it.configure() }
@@ -92,9 +92,9 @@ interface KotlinTargetContainerWithNativeShortcuts : KotlinTargetContainerWithPr
         namePrefix: String = "watchos",
         configure: KotlinNativeTarget.() -> Unit = {}
     ) {
-        val device32 = watchosArm32("${namePrefix}Device32")
-        val device64 = watchosArm64("${namePrefix}Device64")
-        val simulator = watchosX86("${namePrefix}Simulator")
+        val device32 = watchosArm32("${namePrefix}Arm32")
+        val device64 = watchosArm64("${namePrefix}Arm64")
+        val simulator = watchosX86("${namePrefix}X86")
         val deviceTargets = listOf(device32, device64)
 
         val deviceSourceSets = createIntermediateSourceSets(

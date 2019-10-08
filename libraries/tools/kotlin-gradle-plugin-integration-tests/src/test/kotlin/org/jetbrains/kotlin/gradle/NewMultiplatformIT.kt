@@ -2187,18 +2187,18 @@ class NewMultiplatformIT : BaseGradleIT() {
         Assume.assumeTrue(HostManager.hostIsMac)
         doCommonNativeTest(
             "common-ios",
-            libTargets = listOf("iosLibDevice", "iosLibSimulator"),
-            appTargets = listOf("iosDevice", "iosSimulator")
+            libTargets = listOf("iosLibArm64", "iosLibX64"),
+            appTargets = listOf("iosArm64", "iosX64")
         )
         doCommonNativeTest(
             "common-tvos",
-            libTargets = listOf("tvosLibDevice", "tvosLibSimulator"),
-            appTargets = listOf("tvosDevice", "tvosSimulator")
+            libTargets = listOf("tvosLibArm64", "tvosLibX64"),
+            appTargets = listOf("tvosArm64", "tvosX64")
         )
         doCommonNativeTest(
             "common-watchos",
-            libTargets = listOf("watchosLibDevice32", "watchosLibDevice64", "watchosLibSimulator"),
-            appTargets = listOf("watchosDevice32", "watchosDevice64", "watchosSimulator")
+            libTargets = listOf("watchosLibArm32", "watchosLibArm64", "watchosLibX86"),
+            appTargets = listOf("watchosArm32", "watchosArm64", "watchosX86")
         )
     }
 }
