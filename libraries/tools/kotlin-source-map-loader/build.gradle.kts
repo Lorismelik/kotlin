@@ -25,12 +25,6 @@ node {
 }
 
 tasks {
-    named("yarn") {
-        outputs.upToDateWhen {
-            projectDir.resolve("node_modules").isDirectory
-        }
-    }
-
     register<YarnTask>("yarnBuild") {
         group = "build"
 
@@ -68,8 +62,7 @@ tasks {
 
         delete = setOf(
             "node_modules",
-            "lib",
-            ".rpt2_cache"
+            "lib"
         )
     }
 
