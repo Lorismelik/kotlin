@@ -8,10 +8,7 @@ package org.jetbrains.kotlin.scripting.compiler.plugin.impl
 import com.intellij.openapi.project.Project
 import org.jetbrains.kotlin.analyzer.ModuleInfo
 import org.jetbrains.kotlin.cli.common.CLIConfigurationKeys
-import org.jetbrains.kotlin.cli.jvm.config.JvmClasspathRoot
-import org.jetbrains.kotlin.cli.jvm.index.JavaRoot
 import org.jetbrains.kotlin.config.CompilerConfiguration
-import org.jetbrains.kotlin.config.CompilerConfigurationKey
 import org.jetbrains.kotlin.config.languageVersionSettings
 import org.jetbrains.kotlin.descriptors.ModuleDescriptor
 import org.jetbrains.kotlin.descriptors.NotFoundClasses
@@ -48,11 +45,12 @@ class PackageFragmentFromClassLoaderProviderExtension(
         val singleModuleClassResolver = SingleModuleClassResolver()
         val notFoundClasses = NotFoundClasses(storageManager, module)
         classpathFromClassloader(classLoader) ?: emptyList()
-        val packagePartProvider = classpathFromClassloader(classLoader)?.let { classPath ->
-            PackagePartFromClassLoaderProvider(compilerConfiguration.languageVersionSettings).apply {
-                addRoots(classPath, compilerConfiguration[CLIConfigurationKeys.MESSAGE_COLLECTOR_KEY]!!)
-            }
-        } ?: PackagePartProvider.Empty
+        val packagePartProvider =
+            PackagePartFromClassLoaderProvider(
+                classLoader,
+                compilerConfiguration.languageVersionSettings,
+                compilerConfiguration[CLIConfigurationKeys.MESSAGE_COLLECTOR_KEY]!!
+            )
 
         val lazyJavaPackageFragmentProvider =
             makeLazyJavaPackageFragmentFromClassLoaderProvider(
