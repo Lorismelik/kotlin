@@ -7,12 +7,46 @@ package kotlin.script.experimental.jvm.util
 
 import java.io.File
 import java.io.FileInputStream
+import java.io.IOException
 import java.io.InputStream
+import java.net.JarURLConnection
+import java.net.URL
 import java.util.jar.JarFile
 import java.util.jar.JarInputStream
+import kotlin.script.experimental.jvm.impl.toFileOrNull
 
 fun ClassLoader.forAllMatchingFiles(namePattern: String, body: (String, InputStream) -> Unit) {
+    val processedDirs = HashSet<File>()
+    val processedJars = HashSet<URL>()
+    val nameRegex = namePatternToRegex(namePattern)
 
+    fun iterateResources(vararg keyResourcePaths: String) {
+        for (keyResourcePath in keyResourcePaths) {
+            val resourceRootCalc = ClassLoaderResourceRootFIlePathCalculator(keyResourcePath)
+            for (url in getResources(keyResourcePath)) {
+                try {
+                    if (url.protocol == "jar") {
+                        val jarConnection = url.openConnection() as? JarURLConnection
+                        val jarUrl = jarConnection?.jarFileURL
+                        if (jarUrl != null && !processedJars.contains(jarUrl)) {
+                            processedJars.add(jarUrl)
+                            forAllMatchingFilesInJarFile(jarConnection.jarFile, nameRegex, body)
+                        }
+                    } else {
+                        val rootDir = url.toFileOrNull()?.let { resourceRootCalc(it) }
+                        if (rootDir != null && rootDir.isDirectory && !processedDirs.contains(rootDir)) {
+                            processedDirs.add(rootDir)
+                            forAllMatchingFilesInDirectory(rootDir, namePattern, body)
+                        }
+                    }
+                } catch (e: IOException) {
+                    // TODO: report errors
+                }
+            }
+        }
+    }
+
+    iterateResources("", JAR_MANIFEST_RESOURCE_NAME)
 }
 
 internal val wildcardChars = "*?".toCharArray()
