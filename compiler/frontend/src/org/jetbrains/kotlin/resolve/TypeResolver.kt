@@ -88,6 +88,14 @@ class TypeResolver(
         )
     }
 
+    fun resolveSyntheticType(scope: LexicalScope, typeReference: KtTypeReference, trace: BindingTrace, checkBounds: Boolean): KotlinType {
+        // bare types are not allowed
+        return resolveType(
+            TypeResolutionContext(scope, trace, checkBounds, false, false, false),
+            typeReference
+        )
+    }
+
     fun resolveAbbreviatedType(scope: LexicalScope, typeReference: KtTypeReference, trace: BindingTrace): SimpleType {
         val resolvedType = resolveType(
             TypeResolutionContext(scope, trace, true, false, typeReference.suppressDiagnosticsInDebugMode(), true),

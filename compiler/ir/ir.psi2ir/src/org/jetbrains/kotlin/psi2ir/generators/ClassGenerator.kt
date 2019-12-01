@@ -15,7 +15,7 @@
  */
 
 package org.jetbrains.kotlin.psi2ir.generators
-
+import org.jetbrains.kotlin.psi2ir.transformations.reification.resolveParametricSupertype
 import org.jetbrains.kotlin.builtins.KotlinBuiltIns
 import org.jetbrains.kotlin.descriptors.*
 import org.jetbrains.kotlin.ir.declarations.*
@@ -26,10 +26,7 @@ import org.jetbrains.kotlin.ir.expressions.putTypeArguments
 import org.jetbrains.kotlin.ir.expressions.typeParametersCount
 import org.jetbrains.kotlin.ir.util.declareSimpleFunctionWithOverrides
 import org.jetbrains.kotlin.ir.util.referenceFunction
-import org.jetbrains.kotlin.psi.KtClassOrObject
-import org.jetbrains.kotlin.psi.KtDelegatedSuperTypeEntry
-import org.jetbrains.kotlin.psi.KtEnumEntry
-import org.jetbrains.kotlin.psi.KtPureClassOrObject
+import org.jetbrains.kotlin.psi.*
 import org.jetbrains.kotlin.psi.psiUtil.endOffset
 import org.jetbrains.kotlin.psi.psiUtil.pureEndOffset
 import org.jetbrains.kotlin.psi.psiUtil.pureStartOffset
@@ -42,6 +39,7 @@ import org.jetbrains.kotlin.renderer.DescriptorRendererModifier
 import org.jetbrains.kotlin.renderer.OverrideRenderingPolicy
 import org.jetbrains.kotlin.resolve.BindingContext
 import org.jetbrains.kotlin.resolve.DescriptorUtils
+import org.jetbrains.kotlin.resolve.lazy.descriptors.LazyClassDescriptor
 import org.jetbrains.kotlin.resolve.scopes.DescriptorKindFilter
 import org.jetbrains.kotlin.resolve.scopes.MemberScope
 import org.jetbrains.kotlin.types.KotlinType
@@ -73,6 +71,7 @@ class ClassGenerator(
 
     fun generateClass(ktClassOrObject: KtPureClassOrObject): IrClass {
         val classDescriptor = ktClassOrObject.findClassDescriptor(this.context.bindingContext)
+        val isReified = classDescriptor.declaredTypeParameters.find { x -> x.isReified } != null
         val startOffset = ktClassOrObject.getStartOffsetOfClassDeclarationOrNull() ?: ktClassOrObject.pureStartOffset
         val endOffset = ktClassOrObject.pureEndOffset
 
@@ -84,6 +83,10 @@ class ClassGenerator(
 
             classDescriptor.typeConstructor.supertypes.mapTo(irClass.superTypes) {
                 it.toIrType()
+            }
+            if (isReified) {
+                val reificationParametricInterface = (classDescriptor as LazyClassDescriptor).resolveParametricSupertype()
+                irClass.superTypes.add(reificationParametricInterface.toIrType())
             }
 
             irClass.thisReceiver = context.symbolTable.declareValueParameter(

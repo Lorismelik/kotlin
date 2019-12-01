@@ -429,7 +429,7 @@ project(':plugins:jvm-abi-gen').projectDir = "$rootDir/plugins/jvm-abi-gen" as F
 project(':plugins:jvm-abi-gen-embeddable').projectDir = "$rootDir/plugins/jvm-abi-gen/embeddable" as File
 project(":dukat").projectDir = "$rootDir/libraries/tools/dukat" as File
 
-project(':js:js.tests').projectDir =  "$rootDir/js/js.tests" as File
+project(':js:js.tests').projectDir = "$rootDir/js/js.tests" as File
 project(':js:js.engines').projectDir = "$rootDir/js/js.engines" as File
 
 // plugin markers:

@@ -21,7 +21,6 @@ private val DEFAULT_DECLARATION_CHECKERS = listOf(
     InfixModifierChecker(),
     SinceKotlinAnnotationValueChecker,
     RequireKotlinAnnotationValueChecker,
-    ReifiedTypeParameterAnnotationChecker(),
     DynamicReceiverChecker,
     DelegationChecker(),
     KClassWithIncorrectTypeArgumentChecker,

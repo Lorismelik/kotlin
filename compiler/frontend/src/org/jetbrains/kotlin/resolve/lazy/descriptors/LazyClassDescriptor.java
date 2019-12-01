@@ -722,4 +722,11 @@ public class LazyClassDescriptor extends ClassDescriptorBase implements ClassDes
 
         return new ArrayList<>(CollectionsKt.filter(allSupertypes, VALID_SUPERTYPE));
     }
+
+    public KotlinType computeExternalSupertype(KtTypeReference externalType) {
+        if (KotlinBuiltIns.isSpecialClassWithNoSupertypes(this)) {
+            return null;
+        }
+        return c.getDescriptorResolver().resolveExternalType(getScopeForClassHeaderResolution(), externalType, c.getTrace(), false);
+    }
 }

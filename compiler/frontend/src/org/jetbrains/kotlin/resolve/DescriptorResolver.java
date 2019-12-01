@@ -163,6 +163,17 @@ public class DescriptorResolver {
         return supertypes;
     }
 
+    public KotlinType resolveExternalType(
+            @NotNull LexicalScope scope,
+            KtTypeReference externalType,
+            BindingTrace trace,
+            boolean checkBounds) {
+        if (externalType != null) {
+            return  typeResolver.resolveSyntheticType(scope, externalType, trace, checkBounds);
+        }
+        return null;
+    }
+
     private static void addValidSupertype(List<KotlinType> supertypes, KotlinType declaredSupertype) {
         if (!KotlinTypeKt.isError(declaredSupertype)) {
             supertypes.add(declaredSupertype);
