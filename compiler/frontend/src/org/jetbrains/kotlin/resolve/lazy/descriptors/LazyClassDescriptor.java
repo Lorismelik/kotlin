@@ -16,11 +16,14 @@ import org.jetbrains.kotlin.builtins.KotlinBuiltIns;
 import org.jetbrains.kotlin.config.LanguageFeature;
 import org.jetbrains.kotlin.descriptors.*;
 import org.jetbrains.kotlin.descriptors.annotations.Annotations;
+import org.jetbrains.kotlin.descriptors.impl.ClassConstructorDescriptorImpl;
 import org.jetbrains.kotlin.descriptors.impl.ClassDescriptorBase;
 import org.jetbrains.kotlin.descriptors.impl.FunctionDescriptorImpl;
+import org.jetbrains.kotlin.descriptors.impl.ValueParameterDescriptorImpl;
 import org.jetbrains.kotlin.diagnostics.DiagnosticFactory0;
 import org.jetbrains.kotlin.incremental.components.NoLookupLocation;
 import org.jetbrains.kotlin.lexer.KtTokens;
+import org.jetbrains.kotlin.metadata.ProtoBuf;
 import org.jetbrains.kotlin.name.Name;
 import org.jetbrains.kotlin.psi.*;
 import org.jetbrains.kotlin.psi.psiUtil.KtPsiUtilKt;
@@ -39,9 +42,7 @@ import org.jetbrains.kotlin.resolve.lazy.data.KtClassLikeInfo;
 import org.jetbrains.kotlin.resolve.lazy.data.KtClassOrObjectInfo;
 import org.jetbrains.kotlin.resolve.lazy.data.KtObjectInfo;
 import org.jetbrains.kotlin.resolve.lazy.declarations.ClassMemberDeclarationProvider;
-import org.jetbrains.kotlin.resolve.scopes.LexicalScope;
-import org.jetbrains.kotlin.resolve.scopes.MemberScope;
-import org.jetbrains.kotlin.resolve.scopes.StaticScopeForKotlinEnum;
+import org.jetbrains.kotlin.resolve.scopes.*;
 import org.jetbrains.kotlin.resolve.source.KotlinSourceElementKt;
 import org.jetbrains.kotlin.storage.MemoizedFunctionToNotNull;
 import org.jetbrains.kotlin.storage.NotNullLazyValue;
@@ -728,5 +729,29 @@ public class LazyClassDescriptor extends ClassDescriptorBase implements ClassDes
             return null;
         }
         return c.getDescriptorResolver().resolveExternalType(getScopeForClassHeaderResolution(), externalType, c.getTrace(), false);
+    }
+
+    public KotlinType computeExternalType(KtTypeReference externalType) {
+        if (KotlinBuiltIns.isSpecialClassWithNoSupertypes(this)) {
+            return null;
+        }
+        return c.getDescriptorResolver().resolveExternalType(getScopeForClassHeaderResolution(), externalType, c.getTrace(), false);
+    }
+
+    public ValueParameterDescriptorImpl computeExternalValueParameter(
+            ClassConstructorDescriptor constructorDescriptor,
+            KtParameter parameter,
+            int index,
+            KotlinType type,
+            Annotations additionalAnnotations
+            )
+    {
+       return c.getDescriptorResolver().resolveValueParameterDescriptor(getScopeForConstructorHeaderResolution(),
+                                                                        constructorDescriptor,
+                                                                        parameter,
+                                                                        index,
+                                                                        type,
+                                                                        c.getTrace(),
+                                                                        additionalAnnotations);
     }
 }

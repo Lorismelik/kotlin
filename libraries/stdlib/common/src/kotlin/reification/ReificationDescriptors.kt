@@ -24,4 +24,8 @@ abstract class _D(
         encl: _D?,
         id: Int
     ) : _D(p, f, encl, id, instanceCheck) {}
+
+    interface Parametric {
+        fun getD(): _D.Cla
+    }
 }

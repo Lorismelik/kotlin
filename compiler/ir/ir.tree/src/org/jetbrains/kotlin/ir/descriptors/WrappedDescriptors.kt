@@ -369,6 +369,9 @@ open class WrappedSimpleFunctionDescriptor(
     annotations: Annotations = Annotations.EMPTY,
     sourceElement: SourceElement = SourceElement.NO_SOURCE
 ) : SimpleFunctionDescriptor, WrappedCallableDescriptor<IrSimpleFunction>(annotations, sourceElement) {
+    override fun addExternalValueParameter(valueParameterDescriptor: ValueParameterDescriptor?) {
+        //TODO TE Fix it \
+    }
 
     // TODO: Remove as soon as all IR declarations have their originalDescriptor.
     constructor(originalDescriptor: FunctionDescriptor) : this(originalDescriptor.annotations, originalDescriptor.source) {
@@ -462,6 +465,10 @@ open class WrappedClassConstructorDescriptor(
     annotations: Annotations = Annotations.EMPTY,
     sourceElement: SourceElement = SourceElement.NO_SOURCE
 ) : ClassConstructorDescriptor, WrappedCallableDescriptor<IrConstructor>(annotations, sourceElement) {
+    override fun addExternalValueParameter(valueParameterDescriptor: ValueParameterDescriptor?) {
+        //TODO TE Fix it
+    }
+
     override fun getContainingDeclaration() = (owner.parent as IrClass).descriptor
 
     override fun getDispatchReceiverParameter() = owner.dispatchReceiverParameter?.run {

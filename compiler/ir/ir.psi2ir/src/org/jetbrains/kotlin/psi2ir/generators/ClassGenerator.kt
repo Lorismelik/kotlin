@@ -15,6 +15,7 @@
  */
 
 package org.jetbrains.kotlin.psi2ir.generators
+
 import org.jetbrains.kotlin.psi2ir.transformations.reification.resolveParametricSupertype
 import org.jetbrains.kotlin.builtins.KotlinBuiltIns
 import org.jetbrains.kotlin.descriptors.*
@@ -33,6 +34,7 @@ import org.jetbrains.kotlin.psi.psiUtil.pureStartOffset
 import org.jetbrains.kotlin.psi.psiUtil.startOffsetSkippingComments
 import org.jetbrains.kotlin.psi.synthetics.SyntheticClassOrObjectDescriptor
 import org.jetbrains.kotlin.psi.synthetics.findClassDescriptor
+import org.jetbrains.kotlin.psi2ir.transformations.reification.createReifiedClassDescriptorAsValueParameter
 import org.jetbrains.kotlin.renderer.ClassifierNamePolicy
 import org.jetbrains.kotlin.renderer.DescriptorRenderer
 import org.jetbrains.kotlin.renderer.DescriptorRendererModifier
@@ -377,7 +379,13 @@ class ClassGenerator(
     private fun generatePrimaryConstructor(irClass: IrClass, ktClassOrObject: KtPureClassOrObject): IrConstructor? {
         val classDescriptor = irClass.descriptor
         val primaryConstructorDescriptor = classDescriptor.unsubstitutedPrimaryConstructor ?: return null
-
+        if (classDescriptor.declaredTypeParameters.firstOrNull { x -> x.isReified } != null && classDescriptor is LazyClassDescriptor) {
+            val valueParameter = classDescriptor.createReifiedClassDescriptorAsValueParameter(
+                primaryConstructorDescriptor,
+                primaryConstructorDescriptor.valueParameters.size
+            )
+            primaryConstructorDescriptor.addExternalValueParameter(valueParameter)
+        }
         return FunctionGenerator(declarationGenerator)
             .generatePrimaryConstructor(primaryConstructorDescriptor, ktClassOrObject)
             .also {

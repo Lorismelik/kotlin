@@ -52,6 +52,8 @@ public interface FunctionDescriptor extends CallableMemberDescriptor {
      */
     boolean isHiddenToOvercomeSignatureClash();
 
+    void addExternalValueParameter(ValueParameterDescriptor valueParameterDescriptor);
+
     @NotNull
     @Override
     FunctionDescriptor copy(DeclarationDescriptor newOwner, Modality modality, Visibility visibility, Kind kind, boolean copyOverrides);

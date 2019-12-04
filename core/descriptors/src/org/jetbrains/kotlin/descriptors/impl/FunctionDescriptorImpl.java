@@ -75,7 +75,8 @@ public abstract class FunctionDescriptorImpl extends DeclarationDescriptorNonRoo
             @NotNull Visibility visibility
     ) {
         this.typeParameters = CollectionsKt.toList(typeParameters);
-        this.unsubstitutedValueParameters = CollectionsKt.toList(unsubstitutedValueParameters);
+        //TODO TE FIX IT
+        this.unsubstitutedValueParameters = CollectionsKt.toMutableList(unsubstitutedValueParameters);
         this.unsubstitutedReturnType = unsubstitutedReturnType;
         this.modality = modality;
         this.visibility = visibility;
@@ -101,6 +102,10 @@ public abstract class FunctionDescriptorImpl extends DeclarationDescriptorNonRoo
         return this;
     }
 
+    @Override
+    public void addExternalValueParameter(ValueParameterDescriptor parameterDescriptor){
+        this.unsubstitutedValueParameters.add(parameterDescriptor);
+    }
     public void setVisibility(@NotNull Visibility visibility) {
         this.visibility = visibility;
     }
