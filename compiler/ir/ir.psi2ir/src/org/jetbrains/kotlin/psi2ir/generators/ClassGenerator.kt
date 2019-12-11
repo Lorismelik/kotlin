@@ -381,8 +381,7 @@ class ClassGenerator(
         val primaryConstructorDescriptor = classDescriptor.unsubstitutedPrimaryConstructor ?: return null
         if (classDescriptor.declaredTypeParameters.firstOrNull { x -> x.isReified } != null && classDescriptor is LazyClassDescriptor) {
             val valueParameter = classDescriptor.createReifiedClassDescriptorAsValueParameter(
-                primaryConstructorDescriptor,
-                primaryConstructorDescriptor.valueParameters.size
+                primaryConstructorDescriptor
             )
             primaryConstructorDescriptor.addExternalValueParameter(valueParameter)
         }

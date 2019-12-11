@@ -6,18 +6,15 @@ import com.intellij.psi.impl.source.tree.TreeElement
 import org.jetbrains.kotlin.KtNodeTypes
 import org.jetbrains.kotlin.descriptors.ClassConstructorDescriptor
 import org.jetbrains.kotlin.descriptors.annotations.Annotations
-import org.jetbrains.kotlin.descriptors.impl.ClassConstructorDescriptorImpl
 import org.jetbrains.kotlin.descriptors.impl.ValueParameterDescriptorImpl
 import org.jetbrains.kotlin.lexer.KtKeywordToken
 import org.jetbrains.kotlin.lexer.KtSingleValueToken
-import org.jetbrains.kotlin.lexer.KtToken
 import org.jetbrains.kotlin.lexer.KtTokens
 import org.jetbrains.kotlin.psi.KtParameter
 import org.jetbrains.kotlin.psi.KtTypeReference
+import org.jetbrains.kotlin.psi2ir.generators.DeclarationGenerator
+import org.jetbrains.kotlin.resolve.BindingContext
 import org.jetbrains.kotlin.resolve.lazy.descriptors.LazyClassDescriptor
-import org.jetbrains.kotlin.resolve.scopes.LexicalScopeKind
-import org.jetbrains.kotlin.resolve.scopes.LexicalWritableScope
-import org.jetbrains.kotlin.resolve.scopes.TraceBasedLocalRedeclarationChecker
 import org.jetbrains.kotlin.types.KotlinType
 
 fun createHiddenTypeReference(typeName: String?): TreeElement {
@@ -64,7 +61,7 @@ fun createHiddenTypeReference(typeName: String?): TreeElement {
 
 fun createValueParameter(): TreeElement {
     return ASTFactory.composite(KtNodeTypes.VALUE_PARAMETER).apply {
-        rawAddChildren(ASTFactory.leaf(KtKeywordToken.keyword("val", "val"), "val"))
+        rawAddChildren(ASTFactory.leaf(KtTokens.VAL_KEYWORD, "val"))
         rawAddChildren(PsiWhiteSpaceImpl(" "))
         rawAddChildren(ASTFactory.leaf(KtTokens.IDENTIFIER, "desc"))
         rawAddChildren(ASTFactory.leaf(KtSingleValueToken("COLON", ":"), ":"))
@@ -79,11 +76,16 @@ fun LazyClassDescriptor.resolveParametricSupertype(): KotlinType {
 }
 
 fun LazyClassDescriptor.createReifiedClassDescriptorAsValueParameter(
-    constructorDescriptorImpl: ClassConstructorDescriptor,
-    index: Int
+    constructorDescriptorImpl: ClassConstructorDescriptor
 ): ValueParameterDescriptorImpl {
     val parameter = KtParameter(createValueParameter())
     val kotlinType = this.computeExternalType(KtTypeReference(createHiddenTypeReference("Cla")))
     val annotations = Annotations.EMPTY
-    return this.computeExternalValueParameter(constructorDescriptorImpl, parameter, index, kotlinType, annotations)
+    return this.computeExternalValueParameter(
+        constructorDescriptorImpl,
+        parameter,
+        constructorDescriptorImpl.valueParameters.size,
+        kotlinType,
+        annotations
+    )
 }
