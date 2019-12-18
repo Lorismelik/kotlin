@@ -19,6 +19,7 @@ package org.jetbrains.kotlin.psi2ir.generators
 import org.jetbrains.kotlin.descriptors.PropertyDescriptor
 import org.jetbrains.kotlin.descriptors.Visibilities
 import org.jetbrains.kotlin.descriptors.Visibility
+import org.jetbrains.kotlin.descriptors.annotations.Annotations
 import org.jetbrains.kotlin.ir.declarations.*
 import org.jetbrains.kotlin.ir.expressions.IrExpressionBody
 import org.jetbrains.kotlin.ir.expressions.IrStatementOrigin
@@ -30,8 +31,11 @@ import org.jetbrains.kotlin.psi.psiUtil.endOffset
 import org.jetbrains.kotlin.psi.psiUtil.startOffsetSkippingComments
 import org.jetbrains.kotlin.psi2ir.pureEndOffsetOrUndefined
 import org.jetbrains.kotlin.psi2ir.pureStartOffsetOrUndefined
+import org.jetbrains.kotlin.psi2ir.transformations.reification.createReifiedClassDescriptorAsValueParameter
+import org.jetbrains.kotlin.psi2ir.transformations.reification.createReifiedClassDescriptorProperty
 import org.jetbrains.kotlin.resolve.BindingContext
 import org.jetbrains.kotlin.resolve.hasBackingField
+import org.jetbrains.kotlin.resolve.lazy.descriptors.LazyClassDescriptor
 
 class PropertyGenerator(declarationGenerator: DeclarationGenerator) : DeclarationGeneratorExtension(declarationGenerator) {
     fun generatePropertyDeclaration(ktProperty: KtProperty): IrProperty {
@@ -44,7 +48,10 @@ class PropertyGenerator(declarationGenerator: DeclarationGenerator) : Declaratio
     }
 
     fun generatePropertyForPrimaryConstructorParameter(ktParameter: KtParameter, irValueParameter: IrValueParameter): IrDeclaration {
-        val propertyDescriptor = getOrFail(BindingContext.PRIMARY_CONSTRUCTOR_PARAMETER, ktParameter)
+        val propertyDescriptor = get(BindingContext.PRIMARY_CONSTRUCTOR_PARAMETER, ktParameter)
+            ?: (irValueParameter.descriptor.containingDeclaration.containingDeclaration as LazyClassDescriptor).createReifiedClassDescriptorProperty(
+                ktParameter
+            )
 
         val irPropertyType = propertyDescriptor.type.toIrType()
         return context.symbolTable.declareProperty(

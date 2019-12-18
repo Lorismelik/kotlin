@@ -6,6 +6,7 @@
 package org.jetbrains.kotlin.resolve;
 
 import com.intellij.psi.PsiElement;
+import com.intellij.psi.PsiInvalidElementAccessException;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 import org.jetbrains.kotlin.config.LanguageFeature;
@@ -82,18 +83,22 @@ public class ModifiersChecker {
         Modality modality = resolveModalityFromModifiers(modifierList, defaultModality, allowSealed);
 
         if (modifierListOwner != null) {
-            Collection<DeclarationAttributeAltererExtension> extensions =
-                    DeclarationAttributeAltererExtension.Companion.getInstances(modifierListOwner.getProject());
+            try {
+                Collection<DeclarationAttributeAltererExtension> extensions =
+                        DeclarationAttributeAltererExtension.Companion.getInstances(modifierListOwner.getProject());
 
-            DeclarationDescriptor descriptor = bindingContext.get(BindingContext.DECLARATION_TO_DESCRIPTOR, modifierListOwner);
-            for (DeclarationAttributeAltererExtension extension : extensions) {
-                Modality newModality = extension.refineDeclarationModality(
-                        modifierListOwner, descriptor, containingDescriptor, modality, false);
+                DeclarationDescriptor descriptor = bindingContext.get(BindingContext.DECLARATION_TO_DESCRIPTOR, modifierListOwner);
+                for (DeclarationAttributeAltererExtension extension : extensions) {
+                    Modality newModality = extension.refineDeclarationModality(
+                            modifierListOwner, descriptor, containingDescriptor, modality, false);
 
-                if (newModality != null) {
-                    modality = newModality;
-                    break;
+                    if (newModality != null) {
+                        modality = newModality;
+                        break;
+                    }
                 }
+            } catch (PsiInvalidElementAccessException e) {
+                return modality;
             }
         }
 

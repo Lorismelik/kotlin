@@ -47,12 +47,12 @@ abstract class _D(
     }
 
     object Man {
-        val descTable: HashMap<Int, _D> = HashMap(101, 0.75f)
+        val descTable: HashMap<Int, _D.Cla> = HashMap(101,0.75f)
         var countId = 1
-        fun register(pureCheck: (Any) -> Boolean, p: Array<_D> = arrayOf()): _D {
+        fun register(pureCheck: (Any) -> Boolean, p : Array<_D> = arrayOf()): _D.Cla {
             val desc = Cla(p, pureCheck)
             val o = descTable[desc.hashCode()]
-            if (o == null) {
+            if (o==null) {
                 desc.id = countId++
                 descTable[desc.hashCode()] = desc;
                 return desc;

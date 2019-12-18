@@ -17,6 +17,7 @@
 package org.jetbrains.kotlin.psi.codeFragmentUtil
 
 import com.intellij.openapi.util.Key
+import com.intellij.psi.PsiInvalidElementAccessException
 import org.jetbrains.kotlin.psi.KtCodeFragment
 import org.jetbrains.kotlin.psi.KtElement
 import org.jetbrains.kotlin.psi.KtFile
@@ -27,8 +28,12 @@ fun KtElement.suppressDiagnosticsInDebugMode(): Boolean {
     return if (this is KtFile) {
         this.suppressDiagnosticsInDebugMode
     } else {
-        val file = this.containingFile
-        file is KtFile && file.suppressDiagnosticsInDebugMode
+        try {
+            val file = this.containingFile
+            file is KtFile && file.suppressDiagnosticsInDebugMode
+        } catch (e: PsiInvalidElementAccessException) {
+            return false
+        }
     }
 }
 

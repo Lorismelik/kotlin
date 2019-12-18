@@ -35,6 +35,7 @@ import org.jetbrains.kotlin.psi.psiUtil.startOffsetSkippingComments
 import org.jetbrains.kotlin.psi.synthetics.SyntheticClassOrObjectDescriptor
 import org.jetbrains.kotlin.psi.synthetics.findClassDescriptor
 import org.jetbrains.kotlin.psi2ir.transformations.reification.createReifiedClassDescriptorAsValueParameter
+import org.jetbrains.kotlin.psi2ir.transformations.reification.createValueParameter
 import org.jetbrains.kotlin.renderer.ClassifierNamePolicy
 import org.jetbrains.kotlin.renderer.DescriptorRenderer
 import org.jetbrains.kotlin.renderer.DescriptorRendererModifier
@@ -100,7 +101,7 @@ class ClassGenerator(
 
             val irPrimaryConstructor = generatePrimaryConstructor(irClass, ktClassOrObject)
             if (irPrimaryConstructor != null) {
-                generateDeclarationsForPrimaryConstructorParameters(irClass, irPrimaryConstructor, ktClassOrObject)
+                generateDeclarationsForPrimaryConstructorParameters(irClass, irPrimaryConstructor, ktClassOrObject, isReified)
             }
 
             if (ktClassOrObject is KtClassOrObject) //todo: supertype list for synthetic declarations
@@ -395,14 +396,18 @@ class ClassGenerator(
     private fun generateDeclarationsForPrimaryConstructorParameters(
         irClass: IrClass,
         irPrimaryConstructor: IrConstructor,
-        ktClassOrObject: KtPureClassOrObject
+        ktClassOrObject: KtPureClassOrObject,
+        isReified: Boolean = false
     ) {
         ktClassOrObject.primaryConstructor?.let { ktPrimaryConstructor ->
             irPrimaryConstructor.valueParameters.forEach {
                 context.symbolTable.introduceValueParameter(it)
             }
-
-            ktPrimaryConstructor.valueParameters.forEachIndexed { i, ktParameter ->
+            val valueParameters = ktPrimaryConstructor.valueParameters.toMutableList()
+            if (isReified) {
+                valueParameters.add(KtParameter(createValueParameter()))
+            }
+            valueParameters.forEachIndexed { i, ktParameter ->
                 val irValueParameter = irPrimaryConstructor.valueParameters[i]
                 if (ktParameter.hasValOrVar()) {
                     val irProperty = PropertyGenerator(declarationGenerator)

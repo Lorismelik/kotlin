@@ -5,13 +5,16 @@ import com.intellij.psi.impl.source.tree.PsiWhiteSpaceImpl
 import com.intellij.psi.impl.source.tree.TreeElement
 import org.jetbrains.kotlin.KtNodeTypes
 import org.jetbrains.kotlin.descriptors.ClassConstructorDescriptor
+import org.jetbrains.kotlin.descriptors.PropertyDescriptor
 import org.jetbrains.kotlin.descriptors.annotations.Annotations
 import org.jetbrains.kotlin.descriptors.impl.ValueParameterDescriptorImpl
 import org.jetbrains.kotlin.lexer.KtKeywordToken
 import org.jetbrains.kotlin.lexer.KtSingleValueToken
 import org.jetbrains.kotlin.lexer.KtTokens
+import org.jetbrains.kotlin.psi.KtFile
 import org.jetbrains.kotlin.psi.KtParameter
 import org.jetbrains.kotlin.psi.KtTypeReference
+import org.jetbrains.kotlin.psi.stubs.impl.KotlinPlaceHolderStubImpl
 import org.jetbrains.kotlin.psi2ir.generators.DeclarationGenerator
 import org.jetbrains.kotlin.resolve.BindingContext
 import org.jetbrains.kotlin.resolve.lazy.descriptors.LazyClassDescriptor
@@ -75,6 +78,19 @@ fun LazyClassDescriptor.resolveParametricSupertype(): KotlinType {
     return this.computeExternalSupertype(parametricRef)
 }
 
+fun LazyClassDescriptor.createReifiedClassDescriptorAsValueParameter(ktParameter: KtParameter): ValueParameterDescriptorImpl {
+    val kotlinType = this.computeExternalType(KtTypeReference(createHiddenTypeReference("Cla")))
+    val primaryConstructor = this.unsubstitutedPrimaryConstructor
+    return this.computeExternalValueParameter(
+        primaryConstructor,
+        ktParameter,
+        primaryConstructor?.valueParameters?.size ?: 0,
+        kotlinType,
+        Annotations.EMPTY
+    )
+}
+
+
 fun LazyClassDescriptor.createReifiedClassDescriptorAsValueParameter(
     constructorDescriptorImpl: ClassConstructorDescriptor
 ): ValueParameterDescriptorImpl {
@@ -87,5 +103,14 @@ fun LazyClassDescriptor.createReifiedClassDescriptorAsValueParameter(
         constructorDescriptorImpl.valueParameters.size,
         kotlinType,
         annotations
+    )
+}
+
+fun LazyClassDescriptor.createReifiedClassDescriptorProperty(
+    parameter: KtParameter
+): PropertyDescriptor {
+    return this.computeExternalProperty(
+        parameter,
+        this.createReifiedClassDescriptorAsValueParameter(parameter)
     )
 }

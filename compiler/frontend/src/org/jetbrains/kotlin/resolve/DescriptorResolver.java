@@ -169,7 +169,7 @@ public class DescriptorResolver {
             BindingTrace trace,
             boolean checkBounds) {
         if (externalType != null) {
-            return  typeResolver.resolveSyntheticType(scope, externalType, trace, checkBounds);
+            return  typeResolver.resolveType(scope, externalType, trace, checkBounds);
         }
         return null;
     }

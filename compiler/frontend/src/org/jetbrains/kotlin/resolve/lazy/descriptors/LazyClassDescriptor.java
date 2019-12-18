@@ -754,4 +754,18 @@ public class LazyClassDescriptor extends ClassDescriptorBase implements ClassDes
                                                                         c.getTrace(),
                                                                         additionalAnnotations);
     }
+
+    public PropertyDescriptor computeExternalProperty(
+            KtParameter parameter,
+            ValueParameterDescriptor valueParameter
+    )
+    {
+        return c.getDescriptorResolver().resolvePrimaryConstructorParameterToAProperty(
+                this,
+                valueParameter,
+                getScopeForClassHeaderResolution(),
+                parameter,
+                c.getTrace()
+                );
+    }
 }
