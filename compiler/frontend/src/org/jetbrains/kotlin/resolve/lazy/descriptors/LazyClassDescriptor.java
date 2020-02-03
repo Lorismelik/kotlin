@@ -16,10 +16,7 @@ import org.jetbrains.kotlin.builtins.KotlinBuiltIns;
 import org.jetbrains.kotlin.config.LanguageFeature;
 import org.jetbrains.kotlin.descriptors.*;
 import org.jetbrains.kotlin.descriptors.annotations.Annotations;
-import org.jetbrains.kotlin.descriptors.impl.ClassConstructorDescriptorImpl;
-import org.jetbrains.kotlin.descriptors.impl.ClassDescriptorBase;
-import org.jetbrains.kotlin.descriptors.impl.FunctionDescriptorImpl;
-import org.jetbrains.kotlin.descriptors.impl.ValueParameterDescriptorImpl;
+import org.jetbrains.kotlin.descriptors.impl.*;
 import org.jetbrains.kotlin.diagnostics.DiagnosticFactory0;
 import org.jetbrains.kotlin.incremental.components.NoLookupLocation;
 import org.jetbrains.kotlin.lexer.KtTokens;
@@ -29,10 +26,8 @@ import org.jetbrains.kotlin.psi.*;
 import org.jetbrains.kotlin.psi.psiUtil.KtPsiUtilKt;
 import org.jetbrains.kotlin.psi.psiUtil.PsiUtilsKt;
 import org.jetbrains.kotlin.psi.synthetics.SyntheticClassOrObjectDescriptor;
-import org.jetbrains.kotlin.resolve.BindingContext;
-import org.jetbrains.kotlin.resolve.BindingTrace;
-import org.jetbrains.kotlin.resolve.DescriptorToSourceUtils;
-import org.jetbrains.kotlin.resolve.DescriptorUtils;
+import org.jetbrains.kotlin.resolve.*;
+import org.jetbrains.kotlin.resolve.calls.smartcasts.DataFlowInfo;
 import org.jetbrains.kotlin.resolve.descriptorUtil.DescriptorUtilsKt;
 import org.jetbrains.kotlin.resolve.lazy.ForceResolveUtil;
 import org.jetbrains.kotlin.resolve.lazy.LazyClassContext;
@@ -724,13 +719,6 @@ public class LazyClassDescriptor extends ClassDescriptorBase implements ClassDes
         return new ArrayList<>(CollectionsKt.filter(allSupertypes, VALID_SUPERTYPE));
     }
 
-    public KotlinType computeExternalSupertype(KtTypeReference externalType) {
-        if (KotlinBuiltIns.isSpecialClassWithNoSupertypes(this)) {
-            return null;
-        }
-        return c.getDescriptorResolver().resolveExternalType(getScopeForClassHeaderResolution(), externalType, c.getTrace(), false);
-    }
-
     public KotlinType computeExternalType(KtTypeReference externalType) {
         if (KotlinBuiltIns.isSpecialClassWithNoSupertypes(this)) {
             return null;
@@ -767,5 +755,23 @@ public class LazyClassDescriptor extends ClassDescriptorBase implements ClassDes
                 parameter,
                 c.getTrace()
                 );
+    }
+
+    public void initializeLambdaDescriptor(
+            DeclarationDescriptor container,
+            KtFunction function ,
+            SimpleFunctionDescriptorImpl functionDescriptor,
+            KotlinType expectedFunctionType,
+            BindingTrace trace) {
+
+        c.getFunctionDescriptorResolver().initializeFunctionDescriptorAndExplicitReturnType(
+                container,
+                getScopeForMemberDeclarationResolution(),
+                function,
+                functionDescriptor,
+                trace,
+                expectedFunctionType,
+                DataFlowInfo.Companion.getEMPTY()
+        );
     }
 }

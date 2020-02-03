@@ -16,9 +16,11 @@
 
 package org.jetbrains.kotlin.psi2ir.generators
 
-import org.jetbrains.kotlin.psi2ir.transformations.reification.resolveParametricSupertype
 import org.jetbrains.kotlin.builtins.KotlinBuiltIns
 import org.jetbrains.kotlin.descriptors.*
+import org.jetbrains.kotlin.descriptors.annotations.Annotations
+import org.jetbrains.kotlin.descriptors.impl.SimpleFunctionDescriptorImpl
+import org.jetbrains.kotlin.descriptors.impl.ValueParameterDescriptorImpl
 import org.jetbrains.kotlin.ir.declarations.*
 import org.jetbrains.kotlin.ir.descriptors.IrImplementingDelegateDescriptorImpl
 import org.jetbrains.kotlin.ir.expressions.impl.*
@@ -27,6 +29,7 @@ import org.jetbrains.kotlin.ir.expressions.putTypeArguments
 import org.jetbrains.kotlin.ir.expressions.typeParametersCount
 import org.jetbrains.kotlin.ir.util.declareSimpleFunctionWithOverrides
 import org.jetbrains.kotlin.ir.util.referenceFunction
+import org.jetbrains.kotlin.name.Name
 import org.jetbrains.kotlin.psi.*
 import org.jetbrains.kotlin.psi.psiUtil.endOffset
 import org.jetbrains.kotlin.psi.psiUtil.pureEndOffset
@@ -34,14 +37,15 @@ import org.jetbrains.kotlin.psi.psiUtil.pureStartOffset
 import org.jetbrains.kotlin.psi.psiUtil.startOffsetSkippingComments
 import org.jetbrains.kotlin.psi.synthetics.SyntheticClassOrObjectDescriptor
 import org.jetbrains.kotlin.psi.synthetics.findClassDescriptor
-import org.jetbrains.kotlin.psi2ir.transformations.reification.createReifiedClassDescriptorAsValueParameter
-import org.jetbrains.kotlin.psi2ir.transformations.reification.createValueParameter
+import org.jetbrains.kotlin.psi2ir.transformations.reification.*
+import org.jetbrains.kotlin.psi2ir.transformations.reification.synthetic.*
 import org.jetbrains.kotlin.renderer.ClassifierNamePolicy
 import org.jetbrains.kotlin.renderer.DescriptorRenderer
 import org.jetbrains.kotlin.renderer.DescriptorRendererModifier
 import org.jetbrains.kotlin.renderer.OverrideRenderingPolicy
 import org.jetbrains.kotlin.resolve.BindingContext
 import org.jetbrains.kotlin.resolve.DescriptorUtils
+import org.jetbrains.kotlin.resolve.checkSinceKotlinVersionAccessibility
 import org.jetbrains.kotlin.resolve.lazy.descriptors.LazyClassDescriptor
 import org.jetbrains.kotlin.resolve.scopes.DescriptorKindFilter
 import org.jetbrains.kotlin.resolve.scopes.MemberScope
@@ -74,7 +78,13 @@ class ClassGenerator(
 
     fun generateClass(ktClassOrObject: KtPureClassOrObject): IrClass {
         val classDescriptor = ktClassOrObject.findClassDescriptor(this.context.bindingContext)
-        val isReified = classDescriptor.declaredTypeParameters.find { x -> x.isReified } != null
+        val isReified = when (ktClassOrObject) {
+            is KtObjectDeclaration -> if (classDescriptor.isCompanionObject)
+                (classDescriptor.containingDeclaration as LazyClassDescriptor).declaredTypeParameters.find { x -> x.isReified } != null
+            else false
+            is KtClass -> classDescriptor.declaredTypeParameters.find { x -> x.isReified } != null
+            else -> false
+        }
         val startOffset = ktClassOrObject.getStartOffsetOfClassDeclarationOrNull() ?: ktClassOrObject.pureStartOffset
         val endOffset = ktClassOrObject.pureEndOffset
 
@@ -87,7 +97,7 @@ class ClassGenerator(
             classDescriptor.typeConstructor.supertypes.mapTo(irClass.superTypes) {
                 it.toIrType()
             }
-            if (isReified) {
+            if (isReified && !irClass.isCompanion) {
                 val reificationParametricInterface = (classDescriptor as LazyClassDescriptor).resolveParametricSupertype()
                 irClass.superTypes.add(reificationParametricInterface.toIrType())
             }
@@ -107,7 +117,7 @@ class ClassGenerator(
             if (ktClassOrObject is KtClassOrObject) //todo: supertype list for synthetic declarations
                 generateMembersDeclaredInSupertypeList(irClass, ktClassOrObject)
 
-            generateMembersDeclaredInClassBody(irClass, ktClassOrObject)
+            generateMembersDeclaredInClassBody(irClass, ktClassOrObject, isReified)
 
             generateFakeOverrideMemberDeclarations(irClass, ktClassOrObject)
 
@@ -380,7 +390,7 @@ class ClassGenerator(
     private fun generatePrimaryConstructor(irClass: IrClass, ktClassOrObject: KtPureClassOrObject): IrConstructor? {
         val classDescriptor = irClass.descriptor
         val primaryConstructorDescriptor = classDescriptor.unsubstitutedPrimaryConstructor ?: return null
-        if (classDescriptor.declaredTypeParameters.firstOrNull { x -> x.isReified } != null && classDescriptor is LazyClassDescriptor) {
+        if (!irClass.isCompanion && classDescriptor.declaredTypeParameters.firstOrNull { x -> x.isReified } != null && classDescriptor is LazyClassDescriptor) {
             val valueParameter = classDescriptor.createReifiedClassDescriptorAsValueParameter(
                 primaryConstructorDescriptor
             )
@@ -405,7 +415,7 @@ class ClassGenerator(
             }
             val valueParameters = ktPrimaryConstructor.valueParameters.toMutableList()
             if (isReified) {
-                valueParameters.add(KtParameter(createValueParameter()))
+                valueParameters.add(KtParameter(createValueParameterForConstructor()))
             }
             valueParameters.forEachIndexed { i, ktParameter ->
                 val irValueParameter = irPrimaryConstructor.valueParameters[i]
@@ -418,14 +428,25 @@ class ClassGenerator(
         }
     }
 
-    private fun generateMembersDeclaredInClassBody(irClass: IrClass, ktClassOrObject: KtPureClassOrObject) {
+    private fun generateMembersDeclaredInClassBody(irClass: IrClass, ktClassOrObject: KtPureClassOrObject, isReified: Boolean = false) {
         // generate real body declarations
         ktClassOrObject.body?.let { ktClassBody ->
             ktClassBody.declarations.mapNotNullTo(irClass.declarations) { ktDeclaration ->
                 declarationGenerator.generateClassMemberDeclaration(ktDeclaration, irClass)
             }
         }
+        if (isReified && irClass.isCompanion) {
+            val classDescriptor = irClass.descriptor as LazyClassDescriptor
+            with(DescriptorFactoryMethodGenerator()) {
+                val declaration = generateFactoryMethodForReifiedDescriptor(classDescriptor)
+                declarationGenerator.generateClassMemberDeclaration(
+                    declaration,
+                    irClass,
+                    createFactoryMethodDescriptor(classDescriptor, declaration)
+                )
+            }
 
+        }
         // generate synthetic nested classes (including companion)
         irClass.descriptor
             .unsubstitutedMemberScope

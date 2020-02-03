@@ -17,6 +17,8 @@
 package org.jetbrains.kotlin.psi2ir.generators
 
 import org.jetbrains.kotlin.descriptors.*
+import org.jetbrains.kotlin.descriptors.annotations.Annotations
+import org.jetbrains.kotlin.descriptors.impl.SimpleFunctionDescriptorImpl
 import org.jetbrains.kotlin.ir.IrElement
 import org.jetbrains.kotlin.ir.UNDEFINED_OFFSET
 import org.jetbrains.kotlin.ir.declarations.*
@@ -30,6 +32,7 @@ import org.jetbrains.kotlin.psi.*
 import org.jetbrains.kotlin.psi.psiUtil.pureEndOffset
 import org.jetbrains.kotlin.psi.psiUtil.pureStartOffset
 import org.jetbrains.kotlin.psi2ir.isConstructorDelegatingToSuper
+import org.jetbrains.kotlin.psi2ir.transformations.reification.ReificationContext
 import org.jetbrains.kotlin.resolve.BindingContext
 import org.jetbrains.kotlin.resolve.DescriptorToSourceUtils
 import org.jetbrains.kotlin.resolve.DescriptorUtils
@@ -37,17 +40,21 @@ import org.jetbrains.kotlin.resolve.constants.evaluate.ConstantExpressionEvaluat
 import org.jetbrains.kotlin.resolve.descriptorUtil.isAnnotationConstructor
 import org.jetbrains.kotlin.resolve.descriptorUtil.propertyIfAccessor
 import org.jetbrains.kotlin.utils.addToStdlib.safeAs
+import java.lang.RuntimeException
 
 class FunctionGenerator(declarationGenerator: DeclarationGenerator) : DeclarationGeneratorExtension(declarationGenerator) {
 
     constructor(context: GeneratorContext) : this(DeclarationGenerator(context))
 
-    fun generateFunctionDeclaration(ktFunction: KtNamedFunction): IrSimpleFunction =
+    fun generateFunctionDeclaration(
+        ktFunction: KtNamedFunction,
+        functionDescriptor: FunctionDescriptor? = null
+    ): IrSimpleFunction =
         declareSimpleFunction(
             ktFunction,
             ktFunction.receiverTypeReference,
             IrDeclarationOrigin.DEFINED,
-            getOrFail(BindingContext.FUNCTION, ktFunction)
+            functionDescriptor ?: getOrFail(BindingContext.FUNCTION, ktFunction)
         ) {
             ktFunction.bodyExpression?.let { generateFunctionBody(it) }
         }
@@ -57,7 +64,8 @@ class FunctionGenerator(declarationGenerator: DeclarationGenerator) : Declaratio
             ktFunction,
             null,
             IrDeclarationOrigin.LOCAL_FUNCTION_FOR_LAMBDA,
-            getOrFail(BindingContext.FUNCTION, ktFunction)
+            get(BindingContext.FUNCTION, ktFunction) ?: ReificationContext.getReificationLambdaDesc(ktFunction)
+            ?: throw RuntimeException("No ${BindingContext.FUNCTION} for $ktFunction")
         ) {
             generateLambdaBody(ktFunction)
         }

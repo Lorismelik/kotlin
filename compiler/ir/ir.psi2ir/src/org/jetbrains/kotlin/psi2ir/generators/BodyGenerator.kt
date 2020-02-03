@@ -30,6 +30,7 @@ import org.jetbrains.kotlin.psi.psiUtil.pureStartOffset
 import org.jetbrains.kotlin.psi.psiUtil.startOffsetSkippingComments
 import org.jetbrains.kotlin.psi.synthetics.findClassDescriptor
 import org.jetbrains.kotlin.psi2ir.intermediate.VariableLValue
+import org.jetbrains.kotlin.psi2ir.transformations.reification.ReificationContext
 import org.jetbrains.kotlin.resolve.BindingContext
 import org.jetbrains.kotlin.resolve.bindingContextUtil.isUsedAsExpression
 import org.jetbrains.kotlin.resolve.bindingContextUtil.isUsedAsResultOfLambda
@@ -100,7 +101,10 @@ class BodyGenerator(
             val ktReturnedValue = ktBodyStatements.last()
             val irReturnedValue = statementGenerator.generateStatement(ktReturnedValue)
             irBlockBody.statements.add(
-                if (ktReturnedValue.isUsedAsResultOfLambda(context.bindingContext) && irReturnedValue is IrExpression) {
+                if ((ktReturnedValue.isUsedAsResultOfLambda(context.bindingContext) ||
+                            ReificationContext.getReificationContext(ktReturnedValue) != null) &&
+                    irReturnedValue is IrExpression
+                ) {
                     generateReturnExpression(irReturnedValue.startOffset, irReturnedValue.endOffset, irReturnedValue)
                 } else {
                     irReturnedValue

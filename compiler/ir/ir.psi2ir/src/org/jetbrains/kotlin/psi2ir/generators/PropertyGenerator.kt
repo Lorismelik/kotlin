@@ -31,8 +31,7 @@ import org.jetbrains.kotlin.psi.psiUtil.endOffset
 import org.jetbrains.kotlin.psi.psiUtil.startOffsetSkippingComments
 import org.jetbrains.kotlin.psi2ir.pureEndOffsetOrUndefined
 import org.jetbrains.kotlin.psi2ir.pureStartOffsetOrUndefined
-import org.jetbrains.kotlin.psi2ir.transformations.reification.createReifiedClassDescriptorAsValueParameter
-import org.jetbrains.kotlin.psi2ir.transformations.reification.createReifiedClassDescriptorProperty
+import org.jetbrains.kotlin.psi2ir.transformations.reification.synthetic.createReifiedClassDescriptorProperty
 import org.jetbrains.kotlin.resolve.BindingContext
 import org.jetbrains.kotlin.resolve.hasBackingField
 import org.jetbrains.kotlin.resolve.lazy.descriptors.LazyClassDescriptor

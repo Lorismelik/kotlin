@@ -35,6 +35,7 @@ import org.jetbrains.kotlin.psi2ir.deparenthesize
 import org.jetbrains.kotlin.psi2ir.intermediate.IntermediateValue
 import org.jetbrains.kotlin.psi2ir.intermediate.createTemporaryVariableInBlock
 import org.jetbrains.kotlin.psi2ir.intermediate.setExplicitReceiverValue
+import org.jetbrains.kotlin.psi2ir.transformations.reification.ReificationContext
 import org.jetbrains.kotlin.resolve.BindingContext
 import org.jetbrains.kotlin.resolve.BindingContextUtils
 import org.jetbrains.kotlin.resolve.DescriptorUtils
@@ -294,7 +295,7 @@ class StatementGenerator(
         entry.expression!!.genExpr()
 
     override fun visitSimpleNameExpression(expression: KtSimpleNameExpression, data: Nothing?): IrExpression {
-        val resolvedCall = getResolvedCall(expression)
+        val resolvedCall = getResolvedCall(expression) ?: ReificationContext.getReificationResolvedCall(expression)
 
         if (resolvedCall != null) {
             if (resolvedCall is VariableAsFunctionResolvedCall) {
@@ -307,7 +308,7 @@ class StatementGenerator(
             return generateExpressionForReferencedDescriptor(descriptor, expression, resolvedCall)
         }
 
-        val referenceTarget = get(BindingContext.REFERENCE_TARGET, expression)
+        val referenceTarget = get(BindingContext.REFERENCE_TARGET, expression) ?: ReificationContext.getReificationClassDescriptor(expression)
         if (referenceTarget != null) {
             return generateExpressionForReferencedDescriptor(referenceTarget, expression, null)
         }
@@ -326,7 +327,8 @@ class StatementGenerator(
         )
 
     override fun visitCallExpression(expression: KtCallExpression, data: Nothing?): IrStatement {
-        val resolvedCall = getResolvedCall(expression) ?: return ErrorExpressionGenerator(this).generateErrorCall(expression)
+        val resolvedCall = getResolvedCall(expression) ?: ReificationContext.getReificationResolvedCall(expression)
+        ?: return ErrorExpressionGenerator(this).generateErrorCall(expression)
 
         if (resolvedCall is VariableAsFunctionResolvedCall) {
             val functionCall = pregenerateCall(resolvedCall.functionCall)

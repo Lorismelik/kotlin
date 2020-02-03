@@ -38,6 +38,7 @@ import org.jetbrains.kotlin.psi.psiUtil.startOffsetSkippingComments
 import org.jetbrains.kotlin.psi2ir.containsNull
 import org.jetbrains.kotlin.psi2ir.findSingleFunction
 import org.jetbrains.kotlin.psi2ir.intermediate.safeCallOnDispatchReceiver
+import org.jetbrains.kotlin.psi2ir.transformations.reification.ReificationContext
 import org.jetbrains.kotlin.resolve.BindingContext
 import org.jetbrains.kotlin.resolve.calls.NewCommonSuperTypeCalculator
 import org.jetbrains.kotlin.resolve.calls.model.ResolvedCall
@@ -48,6 +49,7 @@ import org.jetbrains.kotlin.types.checker.intersectTypes
 import org.jetbrains.kotlin.types.typeUtil.isPrimitiveNumberType
 import org.jetbrains.kotlin.types.typeUtil.makeNotNullable
 import org.jetbrains.kotlin.types.typeUtil.makeNullable
+import java.lang.RuntimeException
 
 
 class OperatorExpressionGenerator(statementGenerator: StatementGenerator) : StatementGeneratorExtension(statementGenerator) {
@@ -115,7 +117,9 @@ class OperatorExpressionGenerator(statementGenerator: StatementGenerator) : Stat
     fun generateInstanceOfExpression(expression: KtIsExpression): IrStatement {
         val ktOperator = expression.operationReference.getReferencedNameElementType()
         val irOperator = getIrTypeOperator(ktOperator)!!
-        val againstType = getOrFail(BindingContext.TYPE, expression.typeReference)
+        val againstType = get(BindingContext.TYPE, expression.typeReference)
+            ?: ReificationContext.getReificationIsExpressionType(expression.typeReference)
+            ?: throw RuntimeException("No ${BindingContext.TYPE} for ${expression.typeReference}")
 
         return IrTypeOperatorCallImpl(
             expression.startOffsetSkippingComments, expression.endOffset, context.irBuiltIns.booleanType, irOperator,

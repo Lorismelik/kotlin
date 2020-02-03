@@ -20,6 +20,8 @@ import com.intellij.lang.ASTNode;
 import com.intellij.navigation.ItemPresentation;
 import com.intellij.navigation.ItemPresentationProviders;
 import com.intellij.psi.PsiElement;
+import com.intellij.psi.PsiFile;
+import com.intellij.psi.PsiInvalidElementAccessException;
 import com.intellij.psi.PsiModifiableCodeBlock;
 import com.intellij.psi.tree.IElementType;
 import com.intellij.psi.util.PsiTreeUtil;
@@ -127,10 +129,16 @@ public class KtNamedFunction extends KtTypeParameterListOwnerStub<KotlinFunction
         if (stub != null && !stub.hasBody()) {
             return null;
         }
-
-        return AstLoadingFilter.forceAllowTreeLoading(this.getContainingFile(), () ->
-                findChildByClass(KtExpression.class)
-        );
+        //TODO TE containingFile...
+        try {
+            PsiFile psiFile = this.getContainingFile();
+            return AstLoadingFilter.forceAllowTreeLoading(psiFile, () ->
+                    findChildByClass(KtExpression.class)
+            );
+        } catch (PsiInvalidElementAccessException e) {
+            return AstLoadingFilter.forceAllowTreeLoading((PsiFile) null, () ->
+                    findChildByClass(KtExpression.class));
+        }
     }
 
     @Nullable

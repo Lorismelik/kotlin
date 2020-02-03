@@ -21,6 +21,7 @@ import org.jetbrains.kotlin.ir.builders.IrGenerator
 import org.jetbrains.kotlin.ir.builders.IrGeneratorWithScope
 import org.jetbrains.kotlin.psi.KtElement
 import org.jetbrains.kotlin.psi.KtExpression
+import org.jetbrains.kotlin.psi2ir.transformations.reification.ReificationContext
 import org.jetbrains.kotlin.resolve.bindingContextUtil.isUsedAsExpression
 import org.jetbrains.kotlin.resolve.calls.callUtil.getResolvedCall
 import org.jetbrains.kotlin.resolve.calls.model.ResolvedCall
@@ -49,7 +50,8 @@ fun Generator.getTypeInferredByFrontend(key: KtExpression): KotlinType? =
     context.bindingContext.getType(key)
 
 fun Generator.getTypeInferredByFrontendOrFail(key: KtExpression): KotlinType =
-    getTypeInferredByFrontend(key) ?: throw RuntimeException("No type for expression: ${key.text}")
+    getTypeInferredByFrontend(key) ?: ReificationContext.getReificationLambdaType(key)
+    ?: throw RuntimeException("No type for expression: ${key.text}")
 
 fun Generator.getExpressionTypeWithCoercionToUnit(key: KtExpression): KotlinType? =
     if (key.isUsedAsExpression(context.bindingContext))
