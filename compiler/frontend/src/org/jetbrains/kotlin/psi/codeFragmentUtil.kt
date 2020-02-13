@@ -28,12 +28,8 @@ fun KtElement.suppressDiagnosticsInDebugMode(): Boolean {
     return if (this is KtFile) {
         this.suppressDiagnosticsInDebugMode
     } else {
-        try {
-            val file = this.containingFile
-            file is KtFile && file.suppressDiagnosticsInDebugMode
-        } catch (e: PsiInvalidElementAccessException) {
-            return false
-        }
+        val file = this.containingFile
+        file is KtFile && file.suppressDiagnosticsInDebugMode
     }
 }
 

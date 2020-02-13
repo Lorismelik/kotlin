@@ -16,10 +16,7 @@
 
 package org.jetbrains.kotlin.psi2ir.generators
 
-import org.jetbrains.kotlin.descriptors.CallableDescriptor
-import org.jetbrains.kotlin.descriptors.ClassDescriptor
-import org.jetbrains.kotlin.descriptors.DeclarationDescriptor
-import org.jetbrains.kotlin.descriptors.VariableDescriptorWithAccessors
+import org.jetbrains.kotlin.descriptors.*
 import org.jetbrains.kotlin.ir.IrStatement
 import org.jetbrains.kotlin.ir.assertCast
 import org.jetbrains.kotlin.ir.builders.Scope
@@ -35,18 +32,30 @@ import org.jetbrains.kotlin.psi2ir.deparenthesize
 import org.jetbrains.kotlin.psi2ir.intermediate.IntermediateValue
 import org.jetbrains.kotlin.psi2ir.intermediate.createTemporaryVariableInBlock
 import org.jetbrains.kotlin.psi2ir.intermediate.setExplicitReceiverValue
-import org.jetbrains.kotlin.psi2ir.transformations.reification.ReificationContext
+import org.jetbrains.kotlin.psi2ir.transformations.reification.synthetic.DescriptorFactoryMethodGenerator
+import org.jetbrains.kotlin.psi2ir.transformations.reification.synthetic.createDescriptorArgument
 import org.jetbrains.kotlin.resolve.BindingContext
 import org.jetbrains.kotlin.resolve.BindingContextUtils
 import org.jetbrains.kotlin.resolve.DescriptorUtils
+import org.jetbrains.kotlin.resolve.calls.ValueArgumentsToParametersMapper
 import org.jetbrains.kotlin.resolve.calls.model.ResolvedCall
+import org.jetbrains.kotlin.resolve.calls.model.ResolvedCallImpl
 import org.jetbrains.kotlin.resolve.calls.model.VariableAsFunctionResolvedCall
+import org.jetbrains.kotlin.resolve.calls.tasks.TracingStrategy
 import org.jetbrains.kotlin.resolve.calls.tasks.isDynamic
+import org.jetbrains.kotlin.resolve.calls.util.CallMaker
 import org.jetbrains.kotlin.resolve.constants.CompileTimeConstant
 import org.jetbrains.kotlin.resolve.constants.evaluate.ConstantExpressionEvaluator
+import org.jetbrains.kotlin.resolve.descriptorUtil.classValueType
+import org.jetbrains.kotlin.resolve.lazy.descriptors.LazyClassDescriptor
+import org.jetbrains.kotlin.resolve.reification.ReificationContext
 import org.jetbrains.kotlin.types.KotlinType
+import org.jetbrains.kotlin.types.KotlinTypeFactory
+import org.jetbrains.kotlin.types.SimpleType
+import org.jetbrains.kotlin.types.TypeSubstitutor
 import org.jetbrains.kotlin.types.expressions.ExpressionTypingUtils
 import org.jetbrains.kotlin.util.OperatorNameConventions
+import javax.management.Descriptor
 
 class StatementGenerator(
     val bodyGenerator: BodyGenerator,
@@ -295,7 +304,8 @@ class StatementGenerator(
         entry.expression!!.genExpr()
 
     override fun visitSimpleNameExpression(expression: KtSimpleNameExpression, data: Nothing?): IrExpression {
-        val resolvedCall = getResolvedCall(expression) ?: ReificationContext.getReificationResolvedCall(expression)
+        val resolvedCall =
+            getResolvedCall(expression) ?: ReificationContext.getReificationContext<ResolvedCall<*>>(expression, ReificationContext.ContextTypes.RESOLVED_CALL)
 
         if (resolvedCall != null) {
             if (resolvedCall is VariableAsFunctionResolvedCall) {
@@ -308,7 +318,11 @@ class StatementGenerator(
             return generateExpressionForReferencedDescriptor(descriptor, expression, resolvedCall)
         }
 
-        val referenceTarget = get(BindingContext.REFERENCE_TARGET, expression) ?: ReificationContext.getReificationClassDescriptor(expression)
+        val referenceTarget =
+            get(BindingContext.REFERENCE_TARGET, expression) ?: ReificationContext.getReificationContext<ClassDescriptor>(
+                expression,
+                ReificationContext.ContextTypes.DESC
+            )
         if (referenceTarget != null) {
             return generateExpressionForReferencedDescriptor(referenceTarget, expression, null)
         }
@@ -327,12 +341,35 @@ class StatementGenerator(
         )
 
     override fun visitCallExpression(expression: KtCallExpression, data: Nothing?): IrStatement {
-        val resolvedCall = getResolvedCall(expression) ?: ReificationContext.getReificationResolvedCall(expression)
+        var resolvedCall = getResolvedCall(expression) ?: ReificationContext.getReificationContext<ResolvedCall<*>?>(
+            expression,
+            ReificationContext.ContextTypes.RESOLVED_CALL
+        )
         ?: return ErrorExpressionGenerator(this).generateErrorCall(expression)
 
         if (resolvedCall is VariableAsFunctionResolvedCall) {
             val functionCall = pregenerateCall(resolvedCall.functionCall)
             return CallGenerator(this).generateCall(expression, functionCall, IrStatementOrigin.INVOKE)
+        }
+        if (resolvedCall.candidateDescriptor is ClassConstructorDescriptor &&
+            resolvedCall.candidateDescriptor.typeParameters.any { it.isReified }
+        ) {
+            val classDesc = resolvedCall.candidateDescriptor.containingDeclaration as LazyClassDescriptor
+            DescriptorFactoryMethodGenerator(expression.project).generateDescriptorFactoryMethodIfNeeded(classDesc)
+            val newArg = createDescriptorArgument(expression, classDesc, expression.project)
+            resolvedCall = (resolvedCall as ResolvedCallImpl).createNewResolvedConstructorCall(
+                resolvedCall.candidateDescriptor as ClassConstructorDescriptor,
+                CallMaker.makeCall(
+                    resolvedCall.call.callElement,
+                    resolvedCall.call.explicitReceiver,
+                    resolvedCall.call.callOperationNode,
+                    resolvedCall.call.calleeExpression,
+                    mutableListOf<KtValueArgument>() + expression.valueArguments + newArg
+                )
+            )
+            ValueArgumentsToParametersMapper.mapValueArgumentsToParameters(resolvedCall.call, TracingStrategy.EMPTY, resolvedCall)
+            (resolvedCall as ResolvedCallImpl).setResultingSubstitutor(TypeSubstitutor.create(resolvedCall.candidateDescriptor.returnType!!))
+            resolvedCall.markCallAsCompleted()
         }
 
         val calleeExpression = expression.calleeExpression

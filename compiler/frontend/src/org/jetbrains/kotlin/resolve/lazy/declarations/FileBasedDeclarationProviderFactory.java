@@ -94,4 +94,14 @@ public class FileBasedDeclarationProviderFactory extends AbstractDeclarationProv
 
         return new PsiBasedClassMemberDeclarationProvider(storageManager, classLikeInfo);
     }
+
+    @NotNull
+    @Override
+    public ClassMemberDeclarationProvider getReifiedClassMemberDeclarationProvider(@NotNull KtClassLikeInfo classLikeInfo) {
+        if (!index.invoke().filesByPackage.containsKey(classLikeInfo.getContainingPackageFqName())) {
+            throw new IllegalStateException("This factory doesn't know about this class: " + classLikeInfo);
+        }
+
+        return new PsiBasedReifiedClassMemberDeclarationProvider(storageManager, classLikeInfo);
+    }
 }

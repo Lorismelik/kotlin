@@ -61,11 +61,6 @@ public class PropertyGetterDescriptorImpl extends PropertyAccessorDescriptorImpl
         return (Collection) super.getOverriddenDescriptors(true);
     }
 
-    @Override
-    public void addExternalValueParameter(ValueParameterDescriptor valueParameterDescriptor) {
-        //TODO TE Fix it
-    }
-
     @NotNull
     @Override
     public List<ValueParameterDescriptor> getValueParameters() {

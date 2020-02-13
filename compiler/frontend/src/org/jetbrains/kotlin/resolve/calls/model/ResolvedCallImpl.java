@@ -23,11 +23,15 @@ import kotlin.jvm.functions.Function0;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 import org.jetbrains.kotlin.descriptors.CallableDescriptor;
+import org.jetbrains.kotlin.descriptors.ClassConstructorDescriptor;
 import org.jetbrains.kotlin.descriptors.TypeParameterDescriptor;
 import org.jetbrains.kotlin.descriptors.ValueParameterDescriptor;
+import org.jetbrains.kotlin.descriptors.impl.ClassConstructorDescriptorImpl;
 import org.jetbrains.kotlin.psi.Call;
 import org.jetbrains.kotlin.psi.ValueArgument;
 import org.jetbrains.kotlin.renderer.DescriptorRenderer;
+import org.jetbrains.kotlin.resolve.BindingContext;
+import org.jetbrains.kotlin.resolve.BindingTraceFilter;
 import org.jetbrains.kotlin.resolve.DelegatingBindingTrace;
 import org.jetbrains.kotlin.resolve.calls.callResolverUtil.CallResolverUtilKt;
 import org.jetbrains.kotlin.resolve.calls.inference.ConstraintSystem;
@@ -59,6 +63,19 @@ public class ResolvedCallImpl<D extends CallableDescriptor> implements MutableRe
     ) {
         return new ResolvedCallImpl<>(candidate, trace, tracing, dataFlowInfoForArguments);
     }
+
+    @NotNull
+    public  ResolvedCallImpl<ClassConstructorDescriptor> createNewResolvedConstructorCall(
+            @NotNull ClassConstructorDescriptor candidate,
+            @NotNull Call call
+    ) {
+        return new ResolvedCallImpl<>(call, candidate, dispatchReceiver, extensionReceiver, explicitReceiverKind, knownTypeParametersSubstitutor,
+                                      new DelegatingBindingTrace(
+                                              BindingContext.EMPTY, "", call, BindingTraceFilter.Companion.getACCEPT_ALL(), false),
+                                      TracingStrategy.EMPTY, dataFlowInfoForArguments);
+    }
+
+
 
     private final Call call;
     private final D candidateDescriptor;

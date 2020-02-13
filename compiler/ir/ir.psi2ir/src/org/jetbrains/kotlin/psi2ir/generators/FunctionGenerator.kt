@@ -32,13 +32,13 @@ import org.jetbrains.kotlin.psi.*
 import org.jetbrains.kotlin.psi.psiUtil.pureEndOffset
 import org.jetbrains.kotlin.psi.psiUtil.pureStartOffset
 import org.jetbrains.kotlin.psi2ir.isConstructorDelegatingToSuper
-import org.jetbrains.kotlin.psi2ir.transformations.reification.ReificationContext
 import org.jetbrains.kotlin.resolve.BindingContext
 import org.jetbrains.kotlin.resolve.DescriptorToSourceUtils
 import org.jetbrains.kotlin.resolve.DescriptorUtils
 import org.jetbrains.kotlin.resolve.constants.evaluate.ConstantExpressionEvaluator
 import org.jetbrains.kotlin.resolve.descriptorUtil.isAnnotationConstructor
 import org.jetbrains.kotlin.resolve.descriptorUtil.propertyIfAccessor
+import org.jetbrains.kotlin.resolve.reification.ReificationContext
 import org.jetbrains.kotlin.utils.addToStdlib.safeAs
 import java.lang.RuntimeException
 
@@ -64,7 +64,10 @@ class FunctionGenerator(declarationGenerator: DeclarationGenerator) : Declaratio
             ktFunction,
             null,
             IrDeclarationOrigin.LOCAL_FUNCTION_FOR_LAMBDA,
-            get(BindingContext.FUNCTION, ktFunction) ?: ReificationContext.getReificationLambdaDesc(ktFunction)
+            get(BindingContext.FUNCTION, ktFunction) ?: ReificationContext.getReificationContext<FunctionDescriptor?>(
+                ktFunction,
+                ReificationContext.ContextTypes.DESC
+            )
             ?: throw RuntimeException("No ${BindingContext.FUNCTION} for $ktFunction")
         ) {
             generateLambdaBody(ktFunction)

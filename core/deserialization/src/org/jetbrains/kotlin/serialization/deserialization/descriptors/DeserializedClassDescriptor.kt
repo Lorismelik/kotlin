@@ -102,6 +102,8 @@ class DeserializedClassDescriptor(
 
     override fun isActual() = false
 
+    override fun isReified() = false
+
     override fun isExternal() = Flags.IS_EXTERNAL_CLASS.get(classProto.flags)
 
     override fun getUnsubstitutedMemberScope(kotlinTypeRefiner: KotlinTypeRefiner): MemberScope =

@@ -72,6 +72,7 @@ class NotFoundClasses(private val storageManager: StorageManager, private val mo
         override fun isExpect() = false
         override fun isActual() = false
         override fun isExternal() = false
+        override fun isReified() = false
         override val annotations: Annotations get() = Annotations.EMPTY
 
         override fun getUnsubstitutedMemberScope(kotlinTypeRefiner: KotlinTypeRefiner) = MemberScope.Empty

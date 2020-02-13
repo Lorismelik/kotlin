@@ -79,9 +79,6 @@ class IrSimpleBuiltinOperatorDescriptorImpl(
     name: Name,
     private val returnType: KotlinType
 ) : IrBuiltinOperatorDescriptorBase(containingDeclaration, name), IrBuiltinOperatorDescriptor {
-    override fun addExternalValueParameter(valueParameterDescriptor: ValueParameterDescriptor?) {
-        //TODO TE Fix it
-    }
 
     private val valueParameters: MutableList<IrBuiltinValueParameterDescriptor> = ArrayList()
 

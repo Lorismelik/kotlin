@@ -81,6 +81,7 @@ class LazyJavaClassDescriptor(
 
     override fun getKind() = kind
     override fun getModality() = modality
+    override fun isReified() = false
 
     // To workaround a problem with Scala compatibility (KT-9700),
     // we consider private visibility of a Java top level class as package private

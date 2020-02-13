@@ -20,7 +20,6 @@ import org.jetbrains.kotlin.descriptors.impl.*;
 import org.jetbrains.kotlin.diagnostics.DiagnosticFactory0;
 import org.jetbrains.kotlin.incremental.components.NoLookupLocation;
 import org.jetbrains.kotlin.lexer.KtTokens;
-import org.jetbrains.kotlin.metadata.ProtoBuf;
 import org.jetbrains.kotlin.name.Name;
 import org.jetbrains.kotlin.psi.*;
 import org.jetbrains.kotlin.psi.psiUtil.KtPsiUtilKt;
@@ -100,6 +99,14 @@ public class LazyClassDescriptor extends ClassDescriptorBase implements ClassDes
     private final NotNullLazyValue<LexicalScope> scopeForInitializerResolution;
 
     private final NotNullLazyValue<Collection<ClassDescriptor>> sealedSubclasses;
+    private final boolean isReified;
+
+    private static boolean isReifiedModificationsNeeded(@NotNull KtClassLikeInfo classLikeInfo) {
+        KtTypeParameterList typeParameterList = classLikeInfo.getTypeParameterList();
+        if (typeParameterList == null) return false;
+        List<KtTypeParameter> typeParameters = typeParameterList.getParameters();
+        return typeParameters.stream().anyMatch(x -> x.hasModifier(KtTokens.REIFIED_KEYWORD));
+    }
 
     public LazyClassDescriptor(
             @NotNull LazyClassContext c,
@@ -119,8 +126,11 @@ public class LazyClassDescriptor extends ClassDescriptorBase implements ClassDes
             this.c.getTrace().record(BindingContext.CLASS, classOrObject, this);
         }
         this.c.getTrace().record(BindingContext.FQNAME_TO_CLASS_DESCRIPTOR, DescriptorUtils.getFqName(this), this);
+        this.isReified = isReifiedModificationsNeeded(classLikeInfo);
+        this.declarationProvider = this.isReified?
+                                   c.getDeclarationProviderFactory().getReifiedClassMemberDeclarationProvider(classLikeInfo)
+                                   : c.getDeclarationProviderFactory().getClassMemberDeclarationProvider(classLikeInfo);
 
-        this.declarationProvider = c.getDeclarationProviderFactory().getClassMemberDeclarationProvider(classLikeInfo);
 
         StorageManager storageManager = c.getStorageManager();
 
@@ -529,6 +539,12 @@ public class LazyClassDescriptor extends ClassDescriptorBase implements ClassDes
         return isActual;
     }
 
+    @Override
+    public boolean isReified() {
+        return this.isReified;
+    }
+
+
     @NotNull
     @Override
     public Annotations getAnnotations() {
@@ -724,37 +740,6 @@ public class LazyClassDescriptor extends ClassDescriptorBase implements ClassDes
             return null;
         }
         return c.getDescriptorResolver().resolveExternalType(getScopeForClassHeaderResolution(), externalType, c.getTrace(), false);
-    }
-
-    public ValueParameterDescriptorImpl computeExternalValueParameter(
-            ClassConstructorDescriptor constructorDescriptor,
-            KtParameter parameter,
-            int index,
-            KotlinType type,
-            Annotations additionalAnnotations
-            )
-    {
-       return c.getDescriptorResolver().resolveValueParameterDescriptor(getScopeForConstructorHeaderResolution(),
-                                                                        constructorDescriptor,
-                                                                        parameter,
-                                                                        index,
-                                                                        type,
-                                                                        c.getTrace(),
-                                                                        additionalAnnotations);
-    }
-
-    public PropertyDescriptor computeExternalProperty(
-            KtParameter parameter,
-            ValueParameterDescriptor valueParameter
-    )
-    {
-        return c.getDescriptorResolver().resolvePrimaryConstructorParameterToAProperty(
-                this,
-                valueParameter,
-                getScopeForClassHeaderResolution(),
-                parameter,
-                c.getTrace()
-                );
     }
 
     public void initializeLambdaDescriptor(

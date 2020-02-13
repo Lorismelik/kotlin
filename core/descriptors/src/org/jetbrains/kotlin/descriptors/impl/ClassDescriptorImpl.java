@@ -154,6 +154,9 @@ public class ClassDescriptorImpl extends ClassDescriptorBase {
         return "class " + getName();
     }
 
+    @Override
+    public boolean isReified() {return false;}
+
     @NotNull
     @Override
     public List<TypeParameterDescriptor> getDeclaredTypeParameters() {

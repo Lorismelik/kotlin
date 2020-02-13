@@ -23,7 +23,6 @@ import org.jetbrains.kotlin.builtins.KotlinBuiltIns
 import org.jetbrains.kotlin.builtins.getReceiverTypeFromFunctionType
 import org.jetbrains.kotlin.builtins.getValueParameterTypesFromFunctionType
 import org.jetbrains.kotlin.builtins.isBuiltinFunctionalType
-import org.jetbrains.kotlin.config.AnalysisFlags
 import org.jetbrains.kotlin.config.LanguageFeature
 import org.jetbrains.kotlin.config.LanguageVersionSettings
 import org.jetbrains.kotlin.contracts.description.ContractProviderKey
@@ -54,6 +53,7 @@ import org.jetbrains.kotlin.resolve.calls.DslMarkerUtils
 import org.jetbrains.kotlin.resolve.calls.smartcasts.DataFlowInfo
 import org.jetbrains.kotlin.resolve.calls.util.createValueParametersForInvokeInFunctionType
 import org.jetbrains.kotlin.resolve.lazy.ForceResolveUtil
+import org.jetbrains.kotlin.resolve.reification.ReificationResolver
 import org.jetbrains.kotlin.resolve.scopes.LexicalScope
 import org.jetbrains.kotlin.resolve.scopes.LexicalScopeKind
 import org.jetbrains.kotlin.resolve.scopes.LexicalWritableScope
@@ -329,13 +329,17 @@ class FunctionDescriptorResolver(
         trace: BindingTrace
     ): ClassConstructorDescriptorImpl? {
         if (classDescriptor.kind == ClassKind.ENUM_ENTRY || !classElement.hasPrimaryConstructor()) return null
+        var parameters = classElement.primaryConstructorParameters
+        if (classElement is KtClassOrObject &&  classDescriptor.isReified) {
+            parameters += ReificationResolver.resolveConstructorParameter(classElement)
+        }
         return createConstructorDescriptor(
             scope,
             classDescriptor,
             true,
             classElement.primaryConstructorModifierList,
             classElement.primaryConstructor ?: classElement,
-            classElement.primaryConstructorParameters,
+            parameters,
             trace
         )
     }

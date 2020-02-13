@@ -78,6 +78,7 @@ class CommonizedClassDescriptor(
     override fun isInner() = isInner
     override fun isExpect() = isExpect
     override fun isActual() = isActual
+    override fun isReified() = false;
 
     override fun getUnsubstitutedMemberScope(kotlinTypeRefiner: KotlinTypeRefiner): CommonizedMemberScope {
         check(kotlinTypeRefiner == KotlinTypeRefiner.Default) {

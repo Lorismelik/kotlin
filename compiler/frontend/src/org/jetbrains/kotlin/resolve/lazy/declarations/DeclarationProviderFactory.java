@@ -31,8 +31,12 @@ public interface DeclarationProviderFactory {
     @NotNull
     ClassMemberDeclarationProvider getClassMemberDeclarationProvider(@NotNull KtClassLikeInfo classLikeInfo);
 
+    @NotNull
+    ClassMemberDeclarationProvider getReifiedClassMemberDeclarationProvider(@NotNull KtClassLikeInfo classLikeInfo);
+
     @Nullable
     PackageMemberDeclarationProvider getPackageMemberDeclarationProvider(@NotNull FqName packageFqName);
+
 
     void diagnoseMissingPackageFragment(@NotNull FqName fqName, @Nullable KtFile file);
 }

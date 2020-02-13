@@ -38,12 +38,12 @@ import org.jetbrains.kotlin.psi.psiUtil.startOffsetSkippingComments
 import org.jetbrains.kotlin.psi2ir.containsNull
 import org.jetbrains.kotlin.psi2ir.findSingleFunction
 import org.jetbrains.kotlin.psi2ir.intermediate.safeCallOnDispatchReceiver
-import org.jetbrains.kotlin.psi2ir.transformations.reification.ReificationContext
 import org.jetbrains.kotlin.resolve.BindingContext
 import org.jetbrains.kotlin.resolve.calls.NewCommonSuperTypeCalculator
 import org.jetbrains.kotlin.resolve.calls.model.ResolvedCall
 import org.jetbrains.kotlin.resolve.checkers.PrimitiveNumericComparisonInfo
 import org.jetbrains.kotlin.resolve.constants.evaluate.ConstantExpressionEvaluator
+import org.jetbrains.kotlin.resolve.reification.ReificationContext
 import org.jetbrains.kotlin.types.*
 import org.jetbrains.kotlin.types.checker.intersectTypes
 import org.jetbrains.kotlin.types.typeUtil.isPrimitiveNumberType
@@ -118,7 +118,7 @@ class OperatorExpressionGenerator(statementGenerator: StatementGenerator) : Stat
         val ktOperator = expression.operationReference.getReferencedNameElementType()
         val irOperator = getIrTypeOperator(ktOperator)!!
         val againstType = get(BindingContext.TYPE, expression.typeReference)
-            ?: ReificationContext.getReificationIsExpressionType(expression.typeReference)
+            ?: ReificationContext.getReificationContext<KotlinType?>(expression.typeReference, ReificationContext.ContextTypes.TYPE)
             ?: throw RuntimeException("No ${BindingContext.TYPE} for ${expression.typeReference}")
 
         return IrTypeOperatorCallImpl(

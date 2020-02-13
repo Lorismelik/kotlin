@@ -114,6 +114,11 @@ public class MutableClassDescriptor extends ClassDescriptorBase {
         return false;
     }
 
+    @Override
+    public boolean isReified() {
+        return false;
+    }
+
     @NotNull
     @Override
     public TypeConstructor getTypeConstructor() {

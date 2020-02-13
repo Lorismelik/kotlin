@@ -83,7 +83,6 @@ public class ModifiersChecker {
         Modality modality = resolveModalityFromModifiers(modifierList, defaultModality, allowSealed);
 
         if (modifierListOwner != null) {
-            try {
                 Collection<DeclarationAttributeAltererExtension> extensions =
                         DeclarationAttributeAltererExtension.Companion.getInstances(modifierListOwner.getProject());
 
@@ -97,9 +96,6 @@ public class ModifiersChecker {
                         break;
                     }
                 }
-            } catch (PsiInvalidElementAccessException e) {
-                return modality;
-            }
         }
 
         return modality;
