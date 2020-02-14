@@ -106,10 +106,8 @@ fun createValueArgumentList(
 
 
 // Parametric super type
-fun LazyClassDescriptor.resolveParametricSupertype(project: Project): KotlinType {
-    val parametricRef = createHiddenTypeReference(project, "Parametric")
-    return this.computeExternalType(parametricRef)
-}
+fun LazyClassDescriptor.resolveParametricSupertype(project: Project): KotlinType =
+    this.computeExternalType(createHiddenTypeReference(project, "Parametric"))
 
 
 

@@ -10,6 +10,7 @@ import com.intellij.lang.ASTNode
 import com.intellij.openapi.project.Project
 import com.intellij.psi.impl.source.tree.CompositeElement
 import com.intellij.psi.impl.source.tree.PsiWhiteSpaceImpl
+import com.intellij.psi.util.PsiTreeUtil
 import org.jetbrains.kotlin.KtNodeTypes
 import org.jetbrains.kotlin.descriptors.*
 import org.jetbrains.kotlin.descriptors.annotations.Annotations
@@ -43,7 +44,7 @@ import org.jetbrains.kotlin.resolve.source.KotlinSourceElement
 /*fun createTD(p: Array<_D>): _D {
     return kotlin.reification._D.Man.register({it is C<*>}, p )
 }*/
-class DescriptorFactoryMethodGenerator(val project: Project) {
+class DescriptorFactoryMethodGenerator(val project: Project, val clazz: LazyClassDescriptor) {
 
     var lambdaExpression: KtLambdaExpression? = null
     var isExpression: KtIsExpression? = null
@@ -51,12 +52,39 @@ class DescriptorFactoryMethodGenerator(val project: Project) {
     var argumentReference: KtNameReferenceExpression? = null
 
 
+    fun createByFactory() =
+        KtPsiFactory(project, false).createFunction(
+            "fun createTD(p: Array<_D>): _D { return kotlin.reification._D.Man.register({it is C<*>}, p) }"
+        ).apply {
+            registerCall = PsiTreeUtil.findChildOfType(this, KtCallExpression::class.java)
+            registerResolvedCallDescriptionForFactoryMethod(
+                clazz,
+                (registerCall!!.parent as KtDotQualifiedExpression).operationTokenNode
+            )
+            val valueArgList = PsiTreeUtil.findChildOfType(this, KtValueArgumentList::class.java)
+            lambdaExpression = PsiTreeUtil.findChildOfType(this, KtLambdaExpression::class.java)
+            isExpression = PsiTreeUtil.findChildOfType(lambdaExpression, KtIsExpression::class.java)
+            ReificationContext.register(
+                lambdaExpression!!.bodyExpression!!.statements.last(),
+                ReificationContext.ContextTypes.REIFICATION_CONTEXT,
+                true
+            )
+            val lambdaType = clazz.computeExternalType(createHiddenTypeReference(project, "Man"))
+                .memberScope.findSingleFunction(Name.identifier("register")).valueParameters[0].type
+            ReificationContext.register(lambdaExpression!!, ReificationContext.ContextTypes.TYPE, lambdaType)
+            val typeRef = clazz.computeExternalType(isExpression!!.typeReference)
+            ReificationContext.register(isExpression!!, ReificationContext.ContextTypes.TYPE, typeRef)
+            argumentReference = PsiTreeUtil.findChildOfType(valueArgList!!.arguments.last(), KtNameReferenceExpression::class.java)
+            val lol = ""
+        }
+
     fun generateDescriptorFactoryMethodIfNeeded(clazz: LazyClassDescriptor) {
         if (ReificationContext.getReificationContext<KtNamedFunction?>(
                 clazz,
                 ReificationContext.ContextTypes.DESC_FACTORY_EXPRESSION
             ) == null
         ) {
+            createByFactory()
             val expression = generateFactoryMethodForReifiedDescriptor(clazz)
             ReificationContext.register(clazz, ReificationContext.ContextTypes.DESC_FACTORY_EXPRESSION, expression)
             val desc = createFactoryMethodDescriptor(clazz, expression)
@@ -75,7 +103,7 @@ class DescriptorFactoryMethodGenerator(val project: Project) {
             clazz.source
         )
 
-        val returnType = clazz.computeExternalType(declaration.receiverTypeReference)
+        val returnType = clazz.computeExternalType(declaration.typeReference)
         val parameter = ValueParameterDescriptorImpl(
             desc, null, 0, Annotations.EMPTY, Name.identifier("p"),
             clazz.computeExternalType(declaration.valueParameters[0].typeReference),
@@ -125,37 +153,9 @@ class DescriptorFactoryMethodGenerator(val project: Project) {
     }
 
     fun generateFactoryMethodForReifiedDescriptor(clazz: LazyClassDescriptor): KtNamedFunction {
-        return KtNamedFunction(
-            createFunction(
-                "createTD",
-                createHiddenTypeReference(project).node as CompositeElement,
-                createValueParamsList(listOf(createParameterForDescriptorCreating())),
-                createBodyForDescriptorFactoryMethod("C<*>", clazz)
-            )
-        )
+        return createByFactory()
     }
 
-    private fun createParameterForDescriptorCreating(): CompositeElement {
-        return ASTFactory.composite(KtNodeTypes.VALUE_PARAMETER).apply {
-            rawAddChildren(ASTFactory.leaf(KtTokens.IDENTIFIER, "p"))
-            rawAddChildren(ASTFactory.leaf(KtTokens.COLON, ":"))
-            rawAddChildren(PsiWhiteSpaceImpl(" "))
-            rawAddChildren(ASTFactory.composite(KtNodeTypes.TYPE_REFERENCE).apply {
-                rawAddChildren(ASTFactory.composite(KtNodeTypes.USER_TYPE).apply {
-                    rawAddChildren(ASTFactory.composite(KtNodeTypes.REFERENCE_EXPRESSION).apply {
-                        rawAddChildren(ASTFactory.leaf(KtTokens.IDENTIFIER, "Array"))
-                    })
-                    rawAddChildren(ASTFactory.composite(KtNodeTypes.TYPE_ARGUMENT_LIST).apply {
-                        rawAddChildren(ASTFactory.leaf(KtTokens.LT, "<"))
-                        rawAddChildren(ASTFactory.composite(KtNodeTypes.TYPE_PROJECTION).apply {
-                            rawAddChildren(createHiddenTypeReference(project).node as CompositeElement)
-                        })
-                        rawAddChildren(ASTFactory.leaf(KtTokens.GT, ">"))
-                    })
-                })
-            })
-        }
-    }
 
     private fun createRegisteringClassDescriptorExpression(callExpression: CompositeElement, clazz: LazyClassDescriptor): CompositeElement {
         return ASTFactory.composite(KtNodeTypes.DOT_QUALIFIED_EXPRESSION).apply {
@@ -171,76 +171,6 @@ class DescriptorFactoryMethodGenerator(val project: Project) {
         }
     }
 
-    private fun createCallExpressionForDescriptorFactoryMethod(type: String, clazz: LazyClassDescriptor): CompositeElement {
-        val isExpression = ASTFactory.composite(KtNodeTypes.IS_EXPRESSION).apply {
-            rawAddChildren(ASTFactory.composite(KtNodeTypes.REFERENCE_EXPRESSION).apply {
-                rawAddChildren(ASTFactory.leaf(KtTokens.IDENTIFIER, "it"))
-            })
-            rawAddChildren(PsiWhiteSpaceImpl(" "))
-            rawAddChildren(ASTFactory.composite(KtNodeTypes.OPERATION_REFERENCE).apply {
-                rawAddChildren(ASTFactory.leaf(KtTokens.IS_KEYWORD, "is"))
-            })
-            rawAddChildren(PsiWhiteSpaceImpl(" "))
-            //TODO Hardcode
-            rawAddChildren(ASTFactory.composite(KtNodeTypes.TYPE_REFERENCE).apply {
-                rawAddChildren(ASTFactory.composite(KtNodeTypes.USER_TYPE).apply {
-                    rawAddChildren(ASTFactory.composite(KtNodeTypes.REFERENCE_EXPRESSION).apply {
-                        rawAddChildren(ASTFactory.leaf(KtTokens.IDENTIFIER, "C"))
-                    })
-                    rawAddChildren(ASTFactory.composite(KtNodeTypes.TYPE_ARGUMENT_LIST).apply {
-                        rawAddChildren(ASTFactory.leaf(KtTokens.LT, "<"))
-                        rawAddChildren(ASTFactory.composite(KtNodeTypes.TYPE_PROJECTION).apply {
-                            rawAddChildren(ASTFactory.leaf(KtTokens.MUL, "*"))
-                        })
-                        rawAddChildren(ASTFactory.leaf(KtTokens.GT, ">"))
-                    })
-                })
-            })
-        }
-        this.isExpression = KtIsExpression(isExpression)
-        lambdaExpression = KtLambdaExpression(null).apply {
-            rawAddChildren(ASTFactory.composite(KtNodeTypes.FUNCTION_LITERAL).apply {
-                rawAddChildren(ASTFactory.leaf(KtTokens.LBRACE, "{"))
-                rawAddChildren(KtBlockExpression(null).apply {
-                    rawAddChildren(isExpression)
-                })
-                rawAddChildren(ASTFactory.leaf(KtTokens.RBRACE, "}"))
-            })
-        }
-
-        val lambdaType = clazz.computeExternalType(createHiddenTypeReference(project, "Man"))
-            .memberScope.findSingleFunction(Name.identifier("register")).valueParameters[0].type
-        ReificationContext.register(
-            lambdaExpression!!.bodyExpression!!.statements.last(),
-            ReificationContext.ContextTypes.REIFICATION_CONTEXT,
-            true
-        )
-        ReificationContext.register(lambdaExpression!!, ReificationContext.ContextTypes.TYPE, lambdaType)
-
-        val typeRef = clazz.computeExternalType(this.isExpression!!.typeReference)
-        ReificationContext.register(this.isExpression!!, ReificationContext.ContextTypes.TYPE, typeRef)
-
-        val parametersArg = ASTFactory.composite(KtNodeTypes.VALUE_ARGUMENT).apply {
-            rawAddChildren(ASTFactory.composite(KtNodeTypes.REFERENCE_EXPRESSION).apply {
-                rawAddChildren(ASTFactory.leaf(KtTokens.IDENTIFIER, "p"))
-            })
-        }
-        argumentReference = parametersArg.findPsiChildByType(KtNodeTypes.REFERENCE_EXPRESSION) as KtNameReferenceExpression
-        return ASTFactory.composite(KtNodeTypes.CALL_EXPRESSION).apply {
-            rawAddChildren(ASTFactory.composite(KtNodeTypes.REFERENCE_EXPRESSION).apply {
-                rawAddChildren(ASTFactory.leaf(KtTokens.IDENTIFIER, "register"))
-            })
-            rawAddChildren(
-                createValueArgumentList(
-                    listOf(
-                        ASTFactory.composite(KtNodeTypes.VALUE_ARGUMENT).apply {
-                            rawAddChildren(lambdaExpression!!)
-                        }, parametersArg
-                    )
-                )
-            )
-        }
-    }
 
     private fun registerParameterDescriptorArrayResolvedCallForFactoryMethod(
         desc: ValueParameterDescriptor
@@ -259,26 +189,6 @@ class DescriptorFactoryMethodGenerator(val project: Project) {
         )
         ReificationContext.register(argumentReference!!, ReificationContext.ContextTypes.RESOLVED_CALL, resolvedCall)
     }
-
-    private fun createBodyForDescriptorFactoryMethod(type: String, clazz: LazyClassDescriptor): KtBlockExpression {
-        return KtBlockExpression(null).apply {
-            rawAddChildren(ASTFactory.leaf(KtTokens.LBRACE, "{"))
-            rawAddChildren(PsiWhiteSpaceImpl(" "))
-            rawAddChildren(ASTFactory.composite(KtNodeTypes.RETURN).apply {
-                rawAddChildren(ASTFactory.leaf(KtTokens.RETURN_KEYWORD, "return"))
-                rawAddChildren(PsiWhiteSpaceImpl(" "))
-                rawAddChildren(
-                    createRegisteringClassDescriptorExpression(
-                        createCallExpressionForDescriptorFactoryMethod(type, clazz),
-                        clazz
-                    )
-                )
-            })
-            rawAddChildren(PsiWhiteSpaceImpl(" "))
-            rawAddChildren(ASTFactory.leaf(KtTokens.RBRACE, "}"))
-        }
-    }
-
 
     private fun registerResolvedCallDescriptionForFactoryMethod(
         clazz: LazyClassDescriptor,

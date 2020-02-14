@@ -739,7 +739,7 @@ public class LazyClassDescriptor extends ClassDescriptorBase implements ClassDes
         if (KotlinBuiltIns.isSpecialClassWithNoSupertypes(this)) {
             return null;
         }
-        return c.getDescriptorResolver().resolveExternalType(getScopeForClassHeaderResolution(), externalType, c.getTrace(), false);
+        return c.getDescriptorResolver().resolveExternalType(getScopeForMemberDeclarationResolution(), externalType, c.getTrace(), false);
     }
 
     public void initializeLambdaDescriptor(

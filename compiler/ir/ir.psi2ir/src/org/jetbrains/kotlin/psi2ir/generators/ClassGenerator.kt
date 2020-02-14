@@ -422,7 +422,7 @@ class ClassGenerator(
         }
         if (isReified && irClass.isCompanion) {
             val classDescriptor = irClass.descriptor as LazyClassDescriptor
-            with(DescriptorFactoryMethodGenerator(ktClassOrObject.containingKtFile.project)) {
+            with(DescriptorFactoryMethodGenerator(ktClassOrObject.containingKtFile.project, classDescriptor)) {
                 val declaration =
                     ReificationContext.getReificationContext(classDescriptor, ReificationContext.ContextTypes.DESC_FACTORY_EXPRESSION)
                         ?: with(
