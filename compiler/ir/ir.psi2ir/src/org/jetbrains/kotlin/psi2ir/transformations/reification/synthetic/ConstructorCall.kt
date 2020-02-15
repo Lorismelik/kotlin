@@ -42,7 +42,7 @@ fun createDescriptorArgument(expression: KtCallExpression, descriptor: LazyClass
         registerArrayOfResolvedCall(descriptor, callExpression.valueArguments.first().getArgumentExpression() as KtCallExpression, project)
         val functionDescriptor = ReificationContext.getReificationContext<FunctionDescriptor?>(
             ReificationContext.getReificationContext(
-                descriptor,
+                descriptor.companionObjectDescriptor!!,
                 ReificationContext.ContextTypes.DESC_FACTORY_EXPRESSION
             ), ReificationContext.ContextTypes.DESC
         )

@@ -355,7 +355,7 @@ class StatementGenerator(
             resolvedCall.candidateDescriptor.typeParameters.any { it.isReified }
         ) {
             val classDesc = resolvedCall.candidateDescriptor.containingDeclaration as LazyClassDescriptor
-            DescriptorFactoryMethodGenerator(expression.project, classDesc).generateDescriptorFactoryMethodIfNeeded(classDesc)
+            DescriptorFactoryMethodGenerator(expression.project, classDesc).generateDescriptorFactoryMethodIfNeeded(classDesc.companionObjectDescriptor!!)
             val newArg = createDescriptorArgument(expression, classDesc, expression.project)
             resolvedCall = (resolvedCall as ResolvedCallImpl).createNewResolvedConstructorCall(
                 resolvedCall.candidateDescriptor as ClassConstructorDescriptor,

@@ -75,20 +75,21 @@ class DescriptorFactoryMethodGenerator(val project: Project, val clazz: LazyClas
             val typeRef = clazz.computeExternalType(isExpression!!.typeReference)
             ReificationContext.register(isExpression!!, ReificationContext.ContextTypes.TYPE, typeRef)
             argumentReference = PsiTreeUtil.findChildOfType(valueArgList!!.arguments.last(), KtNameReferenceExpression::class.java)
-            val lol = ""
         }
 
-    fun generateDescriptorFactoryMethodIfNeeded(clazz: LazyClassDescriptor) {
-        if (ReificationContext.getReificationContext<KtNamedFunction?>(
-                clazz,
-                ReificationContext.ContextTypes.DESC_FACTORY_EXPRESSION
-            ) == null
-        ) {
-            createByFactory()
-            val expression = generateFactoryMethodForReifiedDescriptor(clazz)
-            ReificationContext.register(clazz, ReificationContext.ContextTypes.DESC_FACTORY_EXPRESSION, expression)
-            val desc = createFactoryMethodDescriptor(clazz, expression)
-            ReificationContext.register(expression, ReificationContext.ContextTypes.DESC, desc)
+    fun generateDescriptorFactoryMethodIfNeeded(clazz: ClassDescriptorWithResolutionScopes) {
+        if (clazz is LazyClassDescriptor) {
+            if (ReificationContext.getReificationContext<KtNamedFunction?>(
+                    clazz,
+                    ReificationContext.ContextTypes.DESC_FACTORY_EXPRESSION
+                ) == null
+            ) {
+                createByFactory()
+                val expression = generateFactoryMethodForReifiedDescriptor(clazz)
+                ReificationContext.register(clazz, ReificationContext.ContextTypes.DESC_FACTORY_EXPRESSION, expression)
+                val desc = createFactoryMethodDescriptor(clazz, expression)
+                ReificationContext.register(expression, ReificationContext.ContextTypes.DESC, desc)
+            }
         }
     }
 
