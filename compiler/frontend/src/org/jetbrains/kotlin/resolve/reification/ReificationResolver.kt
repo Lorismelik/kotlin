@@ -17,9 +17,9 @@ object ReificationResolver {
             containingClass,
             ContextTypes.CTOR_PARAM
         ) ?: let {
-            val param = KtPsiFactory(containingClass.project, false).createParameter("val desc: _D.Cla")
+            val param = KtPsiFactory(containingClass.project, false).createParameter("val desc: kotlin.reification._D.Cla")
             register(
-                this,
+                containingClass,
                 ContextTypes.CTOR_PARAM,
                 param
             ) as KtParameter

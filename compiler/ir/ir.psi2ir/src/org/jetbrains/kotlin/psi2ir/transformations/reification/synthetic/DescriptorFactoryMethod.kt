@@ -54,7 +54,7 @@ class DescriptorFactoryMethodGenerator(val project: Project, val clazz: LazyClas
 
     fun createByFactory() =
         KtPsiFactory(project, false).createFunction(
-            "fun createTD(p: Array<_D>): _D { return kotlin.reification._D.Man.register({it is C<*>}, p) }"
+            "fun createTD(p: Array<kotlin.reification._D>): kotlin.reification._D { return kotlin.reification._D.Man.register({it is C<*>}, p) }"
         ).apply {
             registerCall = PsiTreeUtil.findChildOfType(this, KtCallExpression::class.java)
             registerResolvedCallDescriptionForFactoryMethod(

@@ -31,6 +31,8 @@ import org.jetbrains.kotlin.resolve.calls.callUtil.CallUtilKt;
 import org.jetbrains.kotlin.resolve.calls.components.ArgumentsUtilsKt;
 import org.jetbrains.kotlin.resolve.calls.model.*;
 import org.jetbrains.kotlin.resolve.calls.tasks.TracingStrategy;
+import org.jetbrains.kotlin.resolve.reification.ReificationContext;
+import org.jetbrains.kotlin.resolve.source.KotlinSourceElement;
 
 import java.util.*;
 
@@ -327,8 +329,10 @@ public class ValueArgumentsToParametersMapper {
                         candidateCall.recordValueArgument(valueParameter, new VarargValueArgument());
                     }
                     else {
-                        tracing.noValueForParameter(candidateCall.getTrace(), valueParameter);
-                        setStatus(ERROR);
+                        if (!valueParameter.isReified()) {
+                            tracing.noValueForParameter(candidateCall.getTrace(), valueParameter);
+                            setStatus(ERROR);
+                        }
                     }
                 }
             }
