@@ -46,8 +46,6 @@ import org.jetbrains.kotlin.resolve.source.KotlinSourceElement
 }*/
 class DescriptorFactoryMethodGenerator(val project: Project, val clazz: LazyClassDescriptor) {
 
-    var lambdaExpression: KtLambdaExpression? = null
-    var isExpression: KtIsExpression? = null
     var registerCall: KtCallExpression? = null
     var argumentReference: KtNameReferenceExpression? = null
 
@@ -57,23 +55,7 @@ class DescriptorFactoryMethodGenerator(val project: Project, val clazz: LazyClas
             "fun createTD(p: Array<kotlin.reification._D>): kotlin.reification._D { return kotlin.reification._D.Man.register({it is C<*>}, p) }"
         ).apply {
             registerCall = PsiTreeUtil.findChildOfType(this, KtCallExpression::class.java)
-            registerResolvedCallDescriptionForFactoryMethod(
-                clazz,
-                (registerCall!!.parent as KtDotQualifiedExpression).operationTokenNode
-            )
             val valueArgList = PsiTreeUtil.findChildOfType(this, KtValueArgumentList::class.java)
-            lambdaExpression = PsiTreeUtil.findChildOfType(this, KtLambdaExpression::class.java)
-            isExpression = PsiTreeUtil.findChildOfType(lambdaExpression, KtIsExpression::class.java)
-            ReificationContext.register(
-                lambdaExpression!!.bodyExpression!!.statements.last(),
-                ReificationContext.ContextTypes.REIFICATION_CONTEXT,
-                true
-            )
-            val lambdaType = clazz.computeExternalType(createHiddenTypeReference(project, "Man"))
-                .memberScope.findSingleFunction(Name.identifier("register")).valueParameters[0].type
-            ReificationContext.register(lambdaExpression!!, ReificationContext.ContextTypes.TYPE, lambdaType)
-            val typeRef = clazz.computeExternalType(isExpression!!.typeReference)
-            ReificationContext.register(isExpression!!, ReificationContext.ContextTypes.TYPE, typeRef)
             argumentReference = PsiTreeUtil.findChildOfType(valueArgList!!.arguments.last(), KtNameReferenceExpression::class.java)
         }
 
@@ -84,8 +66,7 @@ class DescriptorFactoryMethodGenerator(val project: Project, val clazz: LazyClas
                     ReificationContext.ContextTypes.DESC_FACTORY_EXPRESSION
                 ) == null
             ) {
-                createByFactory()
-                val expression = generateFactoryMethodForReifiedDescriptor(clazz)
+                val expression = createByFactory()
                 ReificationContext.register(clazz, ReificationContext.ContextTypes.DESC_FACTORY_EXPRESSION, expression)
                 val desc = createFactoryMethodDescriptor(clazz, expression)
                 ReificationContext.register(expression, ReificationContext.ContextTypes.DESC, desc)
@@ -123,55 +104,18 @@ class DescriptorFactoryMethodGenerator(val project: Project, val clazz: LazyClas
             Modality.FINAL,
             Visibilities.PUBLIC
         ).also {
-            registerParameterDescriptorArrayResolvedCallForFactoryMethod(
-                desc.valueParameters.first()
-            )
-            val lambdaSource = lambdaExpression!!.functionLiteral
-            val lambdaDescriptor = AnonymousFunctionDescriptor(
-                it,
-                Annotations.EMPTY,
-                CallableMemberDescriptor.Kind.DECLARATION,
-                KotlinSourceElement(lambdaSource as KtElement),
-                false
-            )
-            val lambdaType = clazz.computeExternalType(createHiddenTypeReference(project, "Man"))
-                .memberScope.findSingleFunction(Name.identifier("register")).valueParameters[0].type
 
-            clazz.initializeLambdaDescriptor(
-                it,
-                lambdaSource,
-                lambdaDescriptor,
-                lambdaType,
-                DelegatingBindingTrace(BindingContext.EMPTY, "")
-            )
-            lambdaDescriptor.setReturnType(lambdaType.arguments.last().type)
-            ReificationContext.register(lambdaSource, ReificationContext.ContextTypes.DESC, lambdaDescriptor)
-            registerResolvedCallForIsInstance(
-                isExpression?.leftHandSide as KtNameReferenceExpression,
-                lambdaDescriptor.valueParameters[0]
-            )
+            DescriptorRegisterCall(project, clazz, registerCall!!, it) {
+                registerParameterDescriptorArrayResolvedCallForFactoryMethod(
+                    desc.valueParameters.first()
+                )
+            }.createCallDescriptor()
         }
     }
 
     fun generateFactoryMethodForReifiedDescriptor(clazz: LazyClassDescriptor): KtNamedFunction {
         return createByFactory()
     }
-
-
-    private fun createRegisteringClassDescriptorExpression(callExpression: CompositeElement, clazz: LazyClassDescriptor): CompositeElement {
-        return ASTFactory.composite(KtNodeTypes.DOT_QUALIFIED_EXPRESSION).apply {
-            rawAddChildren(createHiddenDotQualifiedExpression("Man"))
-            rawAddChildren(ASTFactory.leaf(KtTokens.DOT, "."))
-            rawAddChildren(callExpression)
-        }.also {
-            registerCall = it.findPsiChildByType(KtNodeTypes.CALL_EXPRESSION) as KtCallExpression
-            registerResolvedCallDescriptionForFactoryMethod(
-                clazz,
-                it
-            )
-        }
-    }
-
 
     private fun registerParameterDescriptorArrayResolvedCallForFactoryMethod(
         desc: ValueParameterDescriptor
@@ -189,52 +133,5 @@ class DescriptorFactoryMethodGenerator(val project: Project, val clazz: LazyClas
             DataFlowInfoForArgumentsImpl(DataFlowInfo.EMPTY, call)
         )
         ReificationContext.register(argumentReference!!, ReificationContext.ContextTypes.RESOLVED_CALL, resolvedCall)
-    }
-
-    private fun registerResolvedCallDescriptionForFactoryMethod(
-        clazz: LazyClassDescriptor,
-        callExpressionNode: ASTNode
-    ): ResolvedCall<out CallableDescriptor>? {
-
-        val functionDescriptor = clazz.computeExternalType(createHiddenTypeReference(project, "Man"))
-            .memberScope.findSingleFunction(Name.identifier("register"))
-        val classReceiverReferenceExpression = KtNameReferenceExpression(ASTFactory.composite(KtNodeTypes.REFERENCE_EXPRESSION).apply {
-            rawAddChildren(ASTFactory.leaf(KtTokens.IDENTIFIER, "Man"))
-        })
-        val explicitReceiver = ClassQualifier(classReceiverReferenceExpression, functionDescriptor.containingDeclaration as ClassDescriptor)
-        ReificationContext.register(
-            classReceiverReferenceExpression,
-            ReificationContext.ContextTypes.DESC,
-            functionDescriptor.containingDeclaration as ClassDescriptor
-        )
-        val call = CallMaker.makeCall(registerCall, explicitReceiver, callExpressionNode, registerCall, registerCall!!.valueArguments)
-        val resolutionCandidate = ResolutionCandidate.create(
-            call, functionDescriptor, explicitReceiver.classValueReceiver, ExplicitReceiverKind.NO_EXPLICIT_RECEIVER, null
-        )
-        val resolvedCall = ResolvedCallImpl.create(
-            resolutionCandidate,
-            DelegatingBindingTrace(BindingContext.EMPTY, ""),
-            TracingStrategy.EMPTY,
-            DataFlowInfoForArgumentsImpl(DataFlowInfo.EMPTY, call)
-        )
-        ValueArgumentsToParametersMapper.mapValueArgumentsToParameters(call, TracingStrategy.EMPTY, resolvedCall)
-        ReificationContext.register(registerCall!!, ReificationContext.ContextTypes.RESOLVED_CALL, resolvedCall)
-        return resolvedCall
-    }
-
-    private fun registerResolvedCallForIsInstance(referenceExpression: KtNameReferenceExpression, desc: ValueParameterDescriptor) {
-        val call = CallMaker.makeCall(referenceExpression, null, null, referenceExpression, emptyList())
-        val resolvedCall = ResolvedCallImpl(
-            call,
-            desc,
-            null,
-            null,
-            ExplicitReceiverKind.NO_EXPLICIT_RECEIVER,
-            null,
-            DelegatingBindingTrace(BindingContext.EMPTY, ""),
-            TracingStrategy.EMPTY,
-            DataFlowInfoForArgumentsImpl(DataFlowInfo.EMPTY, call)
-        )
-        ReificationContext.register(referenceExpression, ReificationContext.ContextTypes.RESOLVED_CALL, resolvedCall)
     }
 }

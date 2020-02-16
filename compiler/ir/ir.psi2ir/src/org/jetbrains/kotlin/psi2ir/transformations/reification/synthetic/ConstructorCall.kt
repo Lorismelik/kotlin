@@ -6,9 +6,11 @@
 package org.jetbrains.kotlin.psi2ir.transformations.reification.synthetic
 
 import com.intellij.lang.ASTFactory
+import com.intellij.lang.ASTNode
 import com.intellij.openapi.project.Project
 import org.jetbrains.kotlin.KtNodeTypes
 import org.jetbrains.kotlin.descriptors.FunctionDescriptor
+import org.jetbrains.kotlin.descriptors.impl.ClassConstructorDescriptorImpl
 import org.jetbrains.kotlin.incremental.components.NoLookupLocation
 import org.jetbrains.kotlin.lexer.KtTokens
 import org.jetbrains.kotlin.name.Name
@@ -19,6 +21,7 @@ import org.jetbrains.kotlin.resolve.DelegatingBindingTrace
 import org.jetbrains.kotlin.resolve.FunctionDescriptorUtil
 import org.jetbrains.kotlin.resolve.calls.ValueArgumentsToParametersMapper
 import org.jetbrains.kotlin.resolve.calls.model.DataFlowInfoForArgumentsImpl
+import org.jetbrains.kotlin.resolve.calls.model.ResolvedCall
 import org.jetbrains.kotlin.resolve.calls.model.ResolvedCallImpl
 import org.jetbrains.kotlin.resolve.calls.smartcasts.DataFlowInfo
 import org.jetbrains.kotlin.resolve.calls.tasks.ExplicitReceiverKind
@@ -33,8 +36,10 @@ import org.jetbrains.kotlin.serialization.deserialization.descriptors.Deserializ
 import org.jetbrains.kotlin.types.TypeSubstitutor
 
 
-fun createDescriptorArgument(expression: KtCallExpression, descriptor: LazyClassDescriptor, project: Project): KtValueArgument {
-    return KtPsiFactory(expression.project, false).createArgument("C.createTd(arrayOf<_D>())").apply {
+fun createDescriptorArgument(resolvedCall: ResolvedCall<*>, descriptor: LazyClassDescriptor): KtValueArgument {
+    val expression = resolvedCall.call.callElement as KtCallExpression
+    val parametersDescriptors = ""//createTypeParametersDescriptorsSource(resolvedCall)
+    return KtPsiFactory(expression.project, false).createArgument("C.createTd(arrayOf<_D>($parametersDescriptors))").apply {
         val callExpression = (this.getArgumentExpression() as KtDotQualifiedExpression).selectorExpression as KtCallExpression
         val classReceiverReferenceExpression = KtNameReferenceExpression(ASTFactory.composite(KtNodeTypes.REFERENCE_EXPRESSION).apply {
             rawAddChildren(ASTFactory.leaf(KtTokens.IDENTIFIER, descriptor.name.identifier))
@@ -62,16 +67,28 @@ fun createDescriptorArgument(expression: KtCallExpression, descriptor: LazyClass
         val resolutionCandidate = ResolutionCandidate.create(
             call, functionDescriptor!!, explicitReceiver.classValueReceiver, ExplicitReceiverKind.DISPATCH_RECEIVER, null
         )
-        val resolvedCall = ResolvedCallImpl.create(
+        val resolvedCallCopy = ResolvedCallImpl.create(
             resolutionCandidate,
             DelegatingBindingTrace(BindingContext.EMPTY, ""),
             TracingStrategy.EMPTY,
             DataFlowInfoForArgumentsImpl(DataFlowInfo.EMPTY, call)
         )
-        ValueArgumentsToParametersMapper.mapValueArgumentsToParameters(call, TracingStrategy.EMPTY, resolvedCall)
-        ReificationContext.register(callExpression, ReificationContext.ContextTypes.RESOLVED_CALL, resolvedCall)
-        resolvedCall.markCallAsCompleted()
+        ValueArgumentsToParametersMapper.mapValueArgumentsToParameters(call, TracingStrategy.EMPTY, resolvedCallCopy)
+        ReificationContext.register(callExpression, ReificationContext.ContextTypes.RESOLVED_CALL, resolvedCallCopy)
+        resolvedCallCopy.markCallAsCompleted()
     }
+}
+
+fun createTypeParametersDescriptorsSource(resolvedCall: ResolvedCall<*>): String {
+    return (resolvedCall.resultingDescriptor as ClassConstructorDescriptorImpl).returnType.arguments.map {
+        with(StringBuilder()) {
+            append("kotlin.reification._D.Man.register({it is ")
+            append(it.type.constructor)
+            if (it.type.arguments.isNotEmpty()) it.type.arguments.joinTo(this, separator = ", ", prefix = "<", postfix = ">")
+            if (it.type.isMarkedNullable) append("?")
+            append("}, arrayOf<_D>())")
+        }
+    }.joinToString()
 }
 
 fun registerArrayOfResolvedCall(descriptor: LazyClassDescriptor, callExpression: KtCallExpression, project: Project) {
@@ -93,7 +110,10 @@ fun registerArrayOfResolvedCall(descriptor: LazyClassDescriptor, callExpression:
         DataFlowInfoForArgumentsImpl(DataFlowInfo.EMPTY, call)
     )
     ValueArgumentsToParametersMapper.mapValueArgumentsToParameters(call, TracingStrategy.EMPTY, resolvedCall)
-    val substitution = FunctionDescriptorUtil.createSubstitution(functionDescriptor, listOf(descriptor.computeExternalType(createHiddenTypeReference(project))))
+    val substitution = FunctionDescriptorUtil.createSubstitution(
+        functionDescriptor,
+        listOf(descriptor.computeExternalType(createHiddenTypeReference(project)))
+    )
     resolvedCall.setResultingSubstitutor(TypeSubstitutor.create(substitution))
     ReificationContext.register(callExpression, ReificationContext.ContextTypes.RESOLVED_CALL, resolvedCall)
     resolvedCall.markCallAsCompleted()
