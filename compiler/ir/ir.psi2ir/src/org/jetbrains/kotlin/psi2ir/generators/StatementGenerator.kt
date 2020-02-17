@@ -362,7 +362,7 @@ class StatementGenerator(
                 expression.project,
                 classDesc
             ).generateDescriptorFactoryMethodIfNeeded(classDesc.companionObjectDescriptor!!)
-            val newArg = createDescriptorArgument(resolvedCall, classDesc)
+            val newArg = createDescriptorArgument(resolvedCall, classDesc, this.scopeOwner)
             resolvedCall = (resolvedCall as ResolvedCallImpl).createNewResolvedConstructorCall(
                 resolvedCall.candidateDescriptor as ClassConstructorDescriptor,
                 CallMaker.makeCall(

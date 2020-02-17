@@ -8,7 +8,9 @@ package org.jetbrains.kotlin.psi2ir.transformations.reification.synthetic
 import com.intellij.lang.ASTFactory
 import com.intellij.lang.ASTNode
 import com.intellij.openapi.project.Project
+import com.intellij.psi.util.PsiTreeUtil
 import org.jetbrains.kotlin.KtNodeTypes
+import org.jetbrains.kotlin.descriptors.DeclarationDescriptor
 import org.jetbrains.kotlin.descriptors.FunctionDescriptor
 import org.jetbrains.kotlin.descriptors.impl.ClassConstructorDescriptorImpl
 import org.jetbrains.kotlin.incremental.components.NoLookupLocation
@@ -36,10 +38,34 @@ import org.jetbrains.kotlin.serialization.deserialization.descriptors.Deserializ
 import org.jetbrains.kotlin.types.TypeSubstitutor
 
 
-fun createDescriptorArgument(resolvedCall: ResolvedCall<*>, descriptor: LazyClassDescriptor): KtValueArgument {
+fun createDescriptorArgument(
+    resolvedCall: ResolvedCall<*>,
+    descriptor: LazyClassDescriptor,
+    scopeOwner: DeclarationDescriptor
+): KtValueArgument {
     val expression = resolvedCall.call.callElement as KtCallExpression
-    val parametersDescriptors = ""//createTypeParametersDescriptorsSource(resolvedCall)
+    val parametersDescriptors = createTypeParametersDescriptorsSource(resolvedCall)
     return KtPsiFactory(expression.project, false).createArgument("C.createTd(arrayOf<_D>($parametersDescriptors))").apply {
+        val arguments =
+            PsiTreeUtil.findChildOfType(PsiTreeUtil.findChildOfType(this, KtValueArgumentList::class.java), KtValueArgumentList::class.java)
+        arguments?.arguments?.forEach {
+            val registerCall = PsiTreeUtil.findChildOfType(it, KtCallExpression::class.java)!!
+            DescriptorRegisterCall(
+                project,
+                descriptor,
+                registerCall,
+                scopeOwner
+            ) {
+                registerArrayOfResolvedCall(
+                    descriptor,
+                    PsiTreeUtil.findChildOfType(
+                        registerCall,
+                        KtValueArgumentList::class.java
+                    )!!.arguments.last().getArgumentExpression() as KtCallExpression,
+                    project
+                )
+            }.createCallDescriptor()
+        }
         val callExpression = (this.getArgumentExpression() as KtDotQualifiedExpression).selectorExpression as KtCallExpression
         val classReceiverReferenceExpression = KtNameReferenceExpression(ASTFactory.composite(KtNodeTypes.REFERENCE_EXPRESSION).apply {
             rawAddChildren(ASTFactory.leaf(KtTokens.IDENTIFIER, descriptor.name.identifier))
