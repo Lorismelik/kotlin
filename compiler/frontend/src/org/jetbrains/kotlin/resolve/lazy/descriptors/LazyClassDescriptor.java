@@ -49,6 +49,7 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
+import java.util.stream.Collectors;
 
 import static kotlin.collections.CollectionsKt.firstOrNull;
 import static org.jetbrains.kotlin.descriptors.Visibilities.PRIVATE;
@@ -619,6 +620,17 @@ public class LazyClassDescriptor extends ClassDescriptorBase implements ClassDes
     @Override
     public List<TypeParameterDescriptor> getDeclaredTypeParameters() {
         return parameters.invoke();
+    }
+
+    @NotNull
+    @Override
+    public List<TypeParameterDescriptor> getDeclaredReifiedTypeParameters() {
+        return CollectionsKt.filter(parameters.invoke(),  new Function1<TypeParameterDescriptor, Boolean>() {
+            @Override
+            public Boolean invoke(TypeParameterDescriptor descriptor) {
+                return descriptor.isReified();
+            }
+        });
     }
 
     private class LazyClassTypeConstructor extends AbstractClassTypeConstructor {

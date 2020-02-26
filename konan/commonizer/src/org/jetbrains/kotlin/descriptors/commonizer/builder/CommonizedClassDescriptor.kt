@@ -94,6 +94,7 @@ class CommonizedClassDescriptor(
     }
 
     override fun getDeclaredTypeParameters() = declaredTypeParametersAndTypeParameterResolver().first
+    override fun getDeclaredReifiedTypeParameters() = declaredTypeParameters.filter { it.isReified }
     val typeParameterResolver: TypeParameterResolver get() = declaredTypeParametersAndTypeParameterResolver().second
     override fun getConstructors() = constructors
     override fun getUnsubstitutedPrimaryConstructor() = primaryConstructor

@@ -30,6 +30,7 @@ public class LazySubstitutingClassDescriptor extends ModuleAwareClassDescriptor 
     private TypeSubstitutor newSubstitutor;
     private List<TypeParameterDescriptor> typeConstructorParameters;
     private List<TypeParameterDescriptor> declaredTypeParameters;
+    private List<TypeParameterDescriptor> declaredReifiedTypeParameters;
     private TypeConstructor typeConstructor;
 
     public LazySubstitutingClassDescriptor(ModuleAwareClassDescriptor descriptor, TypeSubstitutor substitutor) {
@@ -53,6 +54,13 @@ public class LazySubstitutingClassDescriptor extends ModuleAwareClassDescriptor 
                     @Override
                     public Boolean invoke(TypeParameterDescriptor descriptor) {
                         return !descriptor.isCapturedFromOuterDeclaration();
+                    }
+                });
+
+                declaredReifiedTypeParameters = CollectionsKt.filter(declaredTypeParameters,  new Function1<TypeParameterDescriptor, Boolean>() {
+                    @Override
+                    public Boolean invoke(TypeParameterDescriptor descriptor) {
+                        return descriptor.isReified();
                     }
                 });
             }
@@ -301,6 +309,13 @@ public class LazySubstitutingClassDescriptor extends ModuleAwareClassDescriptor 
     public List<TypeParameterDescriptor> getDeclaredTypeParameters() {
         getSubstitutor();
         return declaredTypeParameters;
+    }
+
+    @NotNull
+    @Override
+    public List<TypeParameterDescriptor> getDeclaredReifiedTypeParameters() {
+        getSubstitutor();
+        return declaredReifiedTypeParameters;
     }
 
     @NotNull

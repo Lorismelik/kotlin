@@ -5,6 +5,8 @@
 
 package org.jetbrains.kotlin.descriptors.impl;
 
+import kotlin.collections.CollectionsKt;
+import kotlin.jvm.functions.Function1;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 import org.jetbrains.kotlin.descriptors.*;
@@ -156,6 +158,17 @@ public class MutableClassDescriptor extends ClassDescriptorBase {
     @Override
     public List<TypeParameterDescriptor> getDeclaredTypeParameters() {
         return typeParameters;
+    }
+
+    @NotNull
+    @Override
+    public List<TypeParameterDescriptor> getDeclaredReifiedTypeParameters() {
+        return CollectionsKt.filter(typeParameters, new Function1<TypeParameterDescriptor, Boolean>() {
+            @Override
+            public Boolean invoke(TypeParameterDescriptor descriptor) {
+                return descriptor.isReified();
+            }
+        });
     }
 
     public void createTypeConstructor() {

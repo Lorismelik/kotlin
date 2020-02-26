@@ -165,6 +165,12 @@ public class ClassDescriptorImpl extends ClassDescriptorBase {
 
     @NotNull
     @Override
+    public List<TypeParameterDescriptor> getDeclaredReifiedTypeParameters() {
+        return Collections.emptyList();
+    }
+
+    @NotNull
+    @Override
     public Collection<ClassDescriptor> getSealedSubclasses() {
         return Collections.emptyList();
     }

@@ -139,6 +139,7 @@ class LazyJavaClassDescriptor(
     }
 
     override fun getDeclaredTypeParameters() = declaredParameters()
+    override fun getDeclaredReifiedTypeParameters() = declaredParameters().filter { it.isReified }
 
     override fun getDefaultFunctionTypeForSamInterface(): SimpleType? =
         c.components.samConversionResolver.resolveFunctionTypeIfSamInterface(this)

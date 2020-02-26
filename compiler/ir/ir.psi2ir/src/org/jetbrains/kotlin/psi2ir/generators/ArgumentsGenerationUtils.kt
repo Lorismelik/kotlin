@@ -39,6 +39,8 @@ import org.jetbrains.kotlin.resolve.ImportedFromObjectCallableDescriptor
 import org.jetbrains.kotlin.resolve.calls.callResolverUtil.getSuperCallExpression
 import org.jetbrains.kotlin.resolve.calls.callUtil.isSafeCall
 import org.jetbrains.kotlin.resolve.calls.model.*
+import org.jetbrains.kotlin.resolve.calls.results.ResolutionStatus
+import org.jetbrains.kotlin.resolve.reification.ReificationContext
 import org.jetbrains.kotlin.resolve.scopes.receivers.*
 import org.jetbrains.kotlin.types.KotlinType
 import org.jetbrains.kotlin.types.TypeProjectionImpl
@@ -396,9 +398,12 @@ private fun ResolvedCall<*>.isExtensionInvokeCall(): Boolean {
 
 private fun StatementGenerator.pregenerateValueArguments(call: CallBuilder, resolvedCall: ResolvedCall<*>) {
     pregenerateValueArgumentsUsing(call, resolvedCall) {
-        generateExpression(it)
+        if (resolvedCall.status == ResolutionStatus.REIFICATION_SUCCESS) {
+            ReificationContext.getReificationContext(it, ReificationContext.ContextTypes.INSTANCE_OF_LEFT_IR)!!
+        } else {
+            generateExpression(it)
+        }
     }
-
     generateSamConversionForValueArgumentsIfRequired(call, resolvedCall.resultingDescriptor)
 }
 

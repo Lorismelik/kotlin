@@ -104,6 +104,7 @@ class FunctionClassDescriptor(
     override fun getSealedSubclasses() = emptyList<ClassDescriptor>()
 
     override fun getDeclaredTypeParameters() = parameters
+    override fun getDeclaredReifiedTypeParameters() = parameters.filter { it.isReified }
 
     private inner class FunctionTypeConstructor : AbstractClassTypeConstructor(storageManager) {
         override fun computeSupertypes(): Collection<KotlinType> {

@@ -73,6 +73,9 @@ abstract class AbstractTypeAliasDescriptor(
     override fun getDeclaredTypeParameters(): List<TypeParameterDescriptor> =
         declaredTypeParametersImpl
 
+    override fun getDeclaredReifiedTypeParameters(): List<TypeParameterDescriptor> =
+        declaredTypeParametersImpl.filter { it.isReified }
+
     override fun getModality() = Modality.FINAL
 
     override fun getVisibility() = visibilityImpl

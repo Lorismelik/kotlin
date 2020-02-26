@@ -55,6 +55,7 @@ import org.jetbrains.kotlin.types.SimpleType
 import org.jetbrains.kotlin.types.TypeSubstitutor
 import org.jetbrains.kotlin.types.expressions.ExpressionTypingUtils
 import org.jetbrains.kotlin.util.OperatorNameConventions
+import java.lang.RuntimeException
 import javax.management.Descriptor
 
 class StatementGenerator(
@@ -229,6 +230,7 @@ class StatementGenerator(
         generateConstantExpression(
             expression,
             ConstantExpressionEvaluator.getConstant(expression, context.bindingContext)
+                ?: ReificationContext.getReificationContext<CompileTimeConstant<*>?>(expression, ReificationContext.ContextTypes.CONSTANT)
                 ?: error("KtConstantExpression was not evaluated: ${expression.text}")
         )
 
@@ -396,7 +398,11 @@ class StatementGenerator(
     }
 
     override fun visitArrayAccessExpression(expression: KtArrayAccessExpression, data: Nothing?): IrStatement {
-        val indexedGetCall = getOrFail(BindingContext.INDEXED_LVALUE_GET, expression)
+        val indexedGetCall =
+            get(BindingContext.INDEXED_LVALUE_GET, expression) ?: ReificationContext.getReificationContext<ResolvedCall<*>?>(
+                expression,
+                ReificationContext.ContextTypes.RESOLVED_CALL
+            ) ?: throw RuntimeException("No ${BindingContext.INDEXED_LVALUE_GET}, for $expression")
 
         return if (indexedGetCall.resultingDescriptor.isDynamic())
             OperatorExpressionGenerator(this).generateDynamicArrayAccess(expression)

@@ -37,6 +37,7 @@ public enum ResolutionStatus {
     // candidates with such error are thrown away completely
     RECEIVER_PRESENCE_ERROR,
     INCOMPLETE_TYPE_INFERENCE,
+    REIFICATION_SUCCESS(true),
     SUCCESS(true);
 
     @SuppressWarnings("unchecked")

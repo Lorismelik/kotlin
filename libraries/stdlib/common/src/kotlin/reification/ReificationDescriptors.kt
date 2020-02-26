@@ -7,7 +7,7 @@ package kotlin.reification
 abstract class _D(
     val p: Array<_D>,
     var id: Int,
-    val pureInstanceCheck: (Any) -> Boolean
+    val pureInstanceCheck: (Any?) -> Boolean
 ) {
     private val hashValue: Int
 
@@ -23,12 +23,12 @@ abstract class _D(
 
     class Cla(
         p: Array<_D>,
-        pureInstanceCheck: (Any) -> Boolean,
+        pureInstanceCheck: (Any?) -> Boolean,
         id: Int = -1
     ) : _D(p, id, pureInstanceCheck) {
     }
 
-    fun isInstance(o: Any): Boolean {
+    fun isInstance(o: Any?): Boolean {
         if (o is Parametric) {
             throw IllegalArgumentException("Not now")
         } else {
@@ -49,7 +49,7 @@ abstract class _D(
     object Man {
         val descTable: HashMap<Int, _D.Cla> = HashMap(101, 0.75f)
         var countId = 1
-        fun register(pureCheck: (Any) -> Boolean, p: Array<_D> = arrayOf()): _D.Cla {
+        fun register(pureCheck: (Any?) -> Boolean, p: Array<_D> = arrayOf()): _D.Cla {
             val desc = Cla(p, pureCheck)
             val o = descTable[desc.hashCode()]
             if (o == null) {

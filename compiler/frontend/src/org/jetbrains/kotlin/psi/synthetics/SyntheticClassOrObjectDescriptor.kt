@@ -89,6 +89,7 @@ class SyntheticClassOrObjectDescriptor(
     override fun getUnsubstitutedPrimaryConstructor() = _unsubstitutedPrimaryConstructor()
     override fun getConstructors() = listOf(_unsubstitutedPrimaryConstructor()) + secondaryConstructors
     override fun getDeclaredTypeParameters() = typeParameters
+    override fun getDeclaredReifiedTypeParameters() = typeParameters.filter { it.isReified }
     override fun getStaticScope() = MemberScope.Empty
     override fun getUnsubstitutedMemberScope(kotlinTypeRefiner: KotlinTypeRefiner) = unsubstitutedMemberScope
     override fun getSealedSubclasses() = emptyList<ClassDescriptor>()

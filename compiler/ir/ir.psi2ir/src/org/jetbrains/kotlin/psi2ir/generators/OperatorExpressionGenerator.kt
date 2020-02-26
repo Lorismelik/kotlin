@@ -16,9 +16,13 @@
 
 package org.jetbrains.kotlin.psi2ir.generators
 
+import com.intellij.psi.util.PsiTreeUtil
 import org.jetbrains.kotlin.builtins.KotlinBuiltIns
 import org.jetbrains.kotlin.config.LanguageFeature
+import org.jetbrains.kotlin.descriptors.ClassDescriptor
+import org.jetbrains.kotlin.descriptors.ClassifierDescriptorWithTypeParameters
 import org.jetbrains.kotlin.descriptors.FunctionDescriptor
+import org.jetbrains.kotlin.descriptors.TypeParameterDescriptor
 import org.jetbrains.kotlin.ir.IrStatement
 import org.jetbrains.kotlin.ir.builders.*
 import org.jetbrains.kotlin.ir.expressions.*
@@ -38,12 +42,15 @@ import org.jetbrains.kotlin.psi.psiUtil.startOffsetSkippingComments
 import org.jetbrains.kotlin.psi2ir.containsNull
 import org.jetbrains.kotlin.psi2ir.findSingleFunction
 import org.jetbrains.kotlin.psi2ir.intermediate.safeCallOnDispatchReceiver
+import org.jetbrains.kotlin.psi2ir.transformations.reification.synthetic.createDescriptorInstanceCheck
 import org.jetbrains.kotlin.resolve.BindingContext
 import org.jetbrains.kotlin.resolve.calls.NewCommonSuperTypeCalculator
 import org.jetbrains.kotlin.resolve.calls.model.ResolvedCall
 import org.jetbrains.kotlin.resolve.checkers.PrimitiveNumericComparisonInfo
 import org.jetbrains.kotlin.resolve.constants.evaluate.ConstantExpressionEvaluator
+import org.jetbrains.kotlin.resolve.lazy.descriptors.LazyClassDescriptor
 import org.jetbrains.kotlin.resolve.reification.ReificationContext
+import org.jetbrains.kotlin.resolve.unsubstitutedUnderlyingParameter
 import org.jetbrains.kotlin.types.*
 import org.jetbrains.kotlin.types.checker.intersectTypes
 import org.jetbrains.kotlin.types.typeUtil.isPrimitiveNumberType
@@ -120,11 +127,33 @@ class OperatorExpressionGenerator(statementGenerator: StatementGenerator) : Stat
         val againstType = get(BindingContext.TYPE, expression.typeReference)
             ?: ReificationContext.getReificationContext<KotlinType?>(expression.typeReference, ReificationContext.ContextTypes.TYPE)
             ?: throw RuntimeException("No ${BindingContext.TYPE} for ${expression.typeReference}")
-
+        val typeDesc = againstType.constructor.declarationDescriptor
+        val leftHandSideIrExpression = expression.leftHandSide.genExpr()
+        if (typeDesc is TypeParameterDescriptor && typeDesc.isReified && typeDesc.containingDeclaration is ClassDescriptor) {
+            return with(
+                createDescriptorInstanceCheck(
+                    expression,
+                    (typeDesc.containingDeclaration as ClassifierDescriptorWithTypeParameters).declaredReifiedTypeParameters.indexOf(
+                        typeDesc
+                    ),
+                    typeDesc.containingDeclaration as LazyClassDescriptor,
+                    this.context.moduleDescriptor,
+                    this.context.builtIns.intType
+                )
+            ) {
+                ReificationContext.register(
+                    PsiTreeUtil.findChildOfType(
+                        this,
+                        KtValueArgument::class.java
+                    )!!.getArgumentExpression()!!, ReificationContext.ContextTypes.INSTANCE_OF_LEFT_IR, leftHandSideIrExpression
+                )
+                this.genExpr()
+            }
+        }
         return IrTypeOperatorCallImpl(
             expression.startOffsetSkippingComments, expression.endOffset, context.irBuiltIns.booleanType, irOperator,
             againstType.toIrType(),
-            expression.leftHandSide.genExpr()
+            leftHandSideIrExpression
         )
     }
 
@@ -323,7 +352,8 @@ class OperatorExpressionGenerator(statementGenerator: StatementGenerator) : Stat
         val comparisonInfo = getPrimitiveNumericComparisonInfo(expression)
         val comparisonType = comparisonInfo?.comparisonType
 
-        val eqeqSymbol = context.irBuiltIns.ieee754equalsFunByOperandType[kotlinTypeToIrType(comparisonType)?.classifierOrNull] ?: context.irBuiltIns.eqeqSymbol
+        val eqeqSymbol = context.irBuiltIns.ieee754equalsFunByOperandType[kotlinTypeToIrType(comparisonType)?.classifierOrNull]
+            ?: context.irBuiltIns.eqeqSymbol
 
         val irEquals = primitiveOp2(
             expression.startOffsetSkippingComments, expression.endOffset,
@@ -361,7 +391,8 @@ class OperatorExpressionGenerator(statementGenerator: StatementGenerator) : Stat
         if (comparisonInfo != null) {
             val comparisonType = comparisonInfo.comparisonType
             val eqeqSymbol =
-                context.irBuiltIns.ieee754equalsFunByOperandType[kotlinTypeToIrType(comparisonType)?.classifierOrNull] ?: context.irBuiltIns.eqeqSymbol
+                context.irBuiltIns.ieee754equalsFunByOperandType[kotlinTypeToIrType(comparisonType)?.classifierOrNull]
+                    ?: context.irBuiltIns.eqeqSymbol
             primitiveOp2(
                 startOffset, endOffset,
                 eqeqSymbol,
@@ -457,7 +488,10 @@ class OperatorExpressionGenerator(statementGenerator: StatementGenerator) : Stat
             val comparisonType = comparisonInfo.comparisonType
             primitiveOp2(
                 startOffset, endOffset,
-                getComparisonOperatorSymbol(origin, kotlinTypeToIrType(comparisonType) ?: error("$comparisonType expected to be primitive")),
+                getComparisonOperatorSymbol(
+                    origin,
+                    kotlinTypeToIrType(comparisonType) ?: error("$comparisonType expected to be primitive")
+                ),
                 context.irBuiltIns.booleanType,
                 origin,
                 ktLeft.generateAsPrimitiveNumericComparisonOperand(comparisonInfo.leftType, comparisonInfo.comparisonType),

@@ -43,6 +43,7 @@ import org.jetbrains.kotlin.resolve.BindingContext
 import org.jetbrains.kotlin.resolve.DescriptorUtils
 import org.jetbrains.kotlin.resolve.lazy.descriptors.LazyClassDescriptor
 import org.jetbrains.kotlin.resolve.reification.ReificationContext
+import org.jetbrains.kotlin.resolve.reification.ReificationResolver
 import org.jetbrains.kotlin.resolve.scopes.DescriptorKindFilter
 import org.jetbrains.kotlin.resolve.scopes.MemberScope
 import org.jetbrains.kotlin.types.KotlinType
@@ -94,8 +95,8 @@ class ClassGenerator(
                 it.toIrType()
             }
             if (isReified && !irClass.isCompanion) {
-                val reificationParametricInterface = (classDescriptor as LazyClassDescriptor).resolveParametricSupertype(ktClassOrObject.containingKtFile.project)
-                irClass.superTypes.add(reificationParametricInterface.toIrType())
+/*                val reificationParametricInterface = (classDescriptor as LazyClassDescriptor).resolveParametricSupertype(ktClassOrObject.containingKtFile.project)
+                irClass.superTypes.add(reificationParametricInterface.toIrType())*/
             }
 
             irClass.thisReceiver = context.symbolTable.declareValueParameter(
@@ -402,7 +403,10 @@ class ClassGenerator(
             irPrimaryConstructor.valueParameters.forEach {
                 context.symbolTable.introduceValueParameter(it)
             }
-            ktPrimaryConstructor.valueParameters.forEachIndexed { i, ktParameter ->
+            val params = if (irClass.descriptor.isReified) {
+                listOf(ReificationResolver.resolveConstructorParameter(ktClassOrObject as KtClassOrObject)) + ktPrimaryConstructor.valueParameters
+            } else ktPrimaryConstructor.valueParameters
+            params.forEachIndexed { i, ktParameter ->
                 val irValueParameter = irPrimaryConstructor.valueParameters[i]
                 if (ktParameter.hasValOrVar()) {
                     val irProperty = PropertyGenerator(declarationGenerator)

@@ -179,6 +179,11 @@ public class ResolvedCallImpl<D extends CallableDescriptor> implements MutableRe
         status = ResolutionStatus.SUCCESS;
     }
 
+    public void setStatusToReificationSuccess() {
+        assert status == INCOMPLETE_TYPE_INFERENCE || status == UNKNOWN_STATUS;
+        status = ResolutionStatus.REIFICATION_SUCCESS;
+    }
+
     @Override
     @NotNull
     public DelegatingBindingTrace getTrace() {

@@ -171,6 +171,7 @@ class DeserializedClassDescriptor(
     override fun getSource() = sourceElement
 
     override fun getDeclaredTypeParameters() = c.typeDeserializer.ownTypeParameters
+    override fun getDeclaredReifiedTypeParameters() = declaredTypeParameters.filter { it.isReified }
 
     private inner class DeserializedClassTypeConstructor : AbstractClassTypeConstructor(c.storageManager) {
         private val parameters = c.storageManager.createLazyValue {

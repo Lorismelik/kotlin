@@ -32,4 +32,8 @@ public interface ClassifierDescriptorWithTypeParameters
     @ReadOnly
     @NotNull
     List<TypeParameterDescriptor> getDeclaredTypeParameters();
+
+    @ReadOnly
+    @NotNull
+    List<TypeParameterDescriptor> getDeclaredReifiedTypeParameters();
 }

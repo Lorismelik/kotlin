@@ -88,6 +88,10 @@ public interface ClassDescriptor extends ClassifierDescriptorWithTypeParameters,
     @NotNull
     List<TypeParameterDescriptor> getDeclaredTypeParameters();
 
+    @Override
+    @ReadOnly
+    @NotNull
+    List<TypeParameterDescriptor> getDeclaredReifiedTypeParameters();
     /**
      * @return direct subclasses of this class if it's a sealed class, empty list otherwise
      */

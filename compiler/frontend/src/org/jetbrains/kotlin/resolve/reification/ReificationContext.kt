@@ -23,6 +23,7 @@ object ReificationContext {
     }
 
     enum class ContextTypes {
+        CONSTANT,
         CTOR_PARAM,
         DESC,
         TYPE,
@@ -30,6 +31,8 @@ object ReificationContext {
         REIFICATION_CONTEXT,
         CONVERSION,
         DESC_FACTORY_EXPRESSION,
-        ARRAY_OF
+        ARRAY_OF,
+        ARRAY_GET,
+        INSTANCE_OF_LEFT_IR
     }
 }

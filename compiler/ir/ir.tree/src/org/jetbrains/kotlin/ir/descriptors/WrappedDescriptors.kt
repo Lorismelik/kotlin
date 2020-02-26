@@ -605,6 +605,8 @@ open class WrappedClassDescriptor(
 
     override fun getDeclaredTypeParameters() = owner.typeParameters.map { it.descriptor }
 
+    override fun getDeclaredReifiedTypeParameters() = owner.typeParameters.filter { it.isReified }.map { it.descriptor }
+
     override fun getSealedSubclasses(): Collection<ClassDescriptor> {
         TODO("not implemented")
     }
@@ -717,6 +719,8 @@ open class WrappedEnumEntryDescriptor(
     }
 
     override fun getDeclaredTypeParameters(): List<TypeParameterDescriptor> = emptyList()
+
+    override fun getDeclaredReifiedTypeParameters(): List<TypeParameterDescriptor> = emptyList()
 
     override fun getSealedSubclasses(): Collection<ClassDescriptor> {
         TODO("not implemented")
@@ -922,6 +926,8 @@ open class WrappedTypeAliasDescriptor(
     override fun isInner(): Boolean = false
 
     override fun getDeclaredTypeParameters(): List<TypeParameterDescriptor> = owner.typeParameters.map { it.descriptor }
+
+    override fun getDeclaredReifiedTypeParameters(): List<TypeParameterDescriptor> = owner.typeParameters.filter { it.isReified }.map { it.descriptor }
 
     override fun getContainingDeclaration(): DeclarationDescriptor = getContainingDeclaration(owner)
 

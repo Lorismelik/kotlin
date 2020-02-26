@@ -64,6 +64,7 @@ class NotFoundClasses(private val storageManager: StorageManager, private val mo
         override fun getVisibility() = Visibilities.PUBLIC
         override fun getTypeConstructor() = typeConstructor
         override fun getDeclaredTypeParameters() = typeParameters
+        override fun getDeclaredReifiedTypeParameters() = typeParameters.filter { it.isReified }
         override fun isInner() = isInner
 
         override fun isCompanionObject() = false
