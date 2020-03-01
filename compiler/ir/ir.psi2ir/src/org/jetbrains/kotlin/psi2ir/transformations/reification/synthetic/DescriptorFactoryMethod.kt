@@ -37,6 +37,7 @@ import org.jetbrains.kotlin.resolve.lazy.descriptors.LazyClassDescriptor
 import org.jetbrains.kotlin.resolve.reification.ReificationContext
 import org.jetbrains.kotlin.resolve.scopes.receivers.ClassQualifier
 import org.jetbrains.kotlin.resolve.source.KotlinSourceElement
+import java.lang.StringBuilder
 
 
 // Factory Descriptor Creating
@@ -50,14 +51,25 @@ class DescriptorFactoryMethodGenerator(val project: Project, val clazz: LazyClas
     var argumentReference: KtNameReferenceExpression? = null
 
 
-    fun createByFactory() =
-        KtPsiFactory(project, false).createFunction(
-            "fun createTD(p: Array<kotlin.reification._D>): kotlin.reification._D { return kotlin.reification._D.Man.register({it is C<*>}, p) }"
+    private fun createByFactory(): KtNamedFunction {
+        val typeRef = createTextTypeReferenceWithStarProjection()
+        return KtPsiFactory(project, false).createFunction(
+            "fun createTD(p: Array<kotlin.reification._D>): kotlin.reification._D { return kotlin.reification._D.Man.register({it is $typeRef}, p) }"
         ).apply {
             registerCall = PsiTreeUtil.findChildOfType(this, KtCallExpression::class.java)
             val valueArgList = PsiTreeUtil.findChildOfType(this, KtValueArgumentList::class.java)
             argumentReference = PsiTreeUtil.findChildOfType(valueArgList!!.arguments.last(), KtNameReferenceExpression::class.java)
         }
+    }
+
+    private fun createTextTypeReferenceWithStarProjection(): String {
+        val type = this.clazz.defaultType
+        return buildString {
+            append(type.constructor)
+            if (type.arguments.isNotEmpty()) type.arguments.joinTo(this, separator = ", ", prefix = "<", postfix = ">") { "*" }
+            if (type.isMarkedNullable) append("?")
+        }
+    }
 
     fun generateDescriptorFactoryMethodIfNeeded(clazz: ClassDescriptorWithResolutionScopes) {
         if (clazz is LazyClassDescriptor) {
