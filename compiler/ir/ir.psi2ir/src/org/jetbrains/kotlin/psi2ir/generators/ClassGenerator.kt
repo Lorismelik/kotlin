@@ -75,13 +75,9 @@ class ClassGenerator(
 
     fun generateClass(ktClassOrObject: KtPureClassOrObject): IrClass {
         val classDescriptor = ktClassOrObject.findClassDescriptor(this.context.bindingContext)
-        val isReified = when (ktClassOrObject) {
-            is KtObjectDeclaration -> if (classDescriptor.isCompanionObject)
-                (classDescriptor.containingDeclaration as LazyClassDescriptor).declaredTypeParameters.find { x -> x.isReified } != null
-            else false
-            is KtClass -> classDescriptor.declaredTypeParameters.find { x -> x.isReified } != null
-            else -> false
-        }
+        val isReified = if (classDescriptor.isCompanionObject)
+            (classDescriptor.containingDeclaration as LazyClassDescriptor).isReified else
+            classDescriptor.isReified
         val startOffset = ktClassOrObject.getStartOffsetOfClassDeclarationOrNull() ?: ktClassOrObject.pureStartOffset
         val endOffset = ktClassOrObject.pureEndOffset
 
@@ -425,30 +421,37 @@ class ClassGenerator(
             }
         }
         if (isReified && irClass.isCompanion) {
-            val classDescriptor = irClass.descriptor as LazyClassDescriptor
-            irClass.declarations.add(with(DescriptorFactoryMethodGenerator(ktClassOrObject.containingKtFile.project, classDescriptor)) {
-                val declaration =
-                    ReificationContext.getReificationContext(classDescriptor, ReificationContext.ContextTypes.DESC_FACTORY_EXPRESSION)
-                        ?: with(
-                            generateFactoryMethodForReifiedDescriptor(classDescriptor)
-                        ) {
-                            ReificationContext.register(classDescriptor, ReificationContext.ContextTypes.DESC_FACTORY_EXPRESSION, this)
-                            this
-                        }
+            val classDescriptor = irClass.descriptor
+            irClass.declarations.add(
+                with(
+                    DescriptorFactoryMethodGenerator(
+                        ktClassOrObject.containingKtFile.project,
+                        classDescriptor.containingDeclaration as LazyClassDescriptor
+                    )
+                ) {
+                    val declaration =
+                        ReificationContext.getReificationContext(classDescriptor, ReificationContext.ContextTypes.DESC_FACTORY_EXPRESSION)
+                            ?: with(
+                                generateFactoryMethodForReifiedDescriptor()
+                            ) {
+                                ReificationContext.register(classDescriptor, ReificationContext.ContextTypes.DESC_FACTORY_EXPRESSION, this)
+                                this
+                            }
 
-                val factoryDesc =
-                    ReificationContext.getReificationContext<MemberDescriptor?>(declaration, ReificationContext.ContextTypes.DESC) ?: with(
-                        createFactoryMethodDescriptor(classDescriptor, declaration)
-                    ) {
-                        ReificationContext.register(classDescriptor, ReificationContext.ContextTypes.DESC, this)
-                        this
-                    }
-                declarationGenerator.generateClassMemberDeclaration(
-                    declaration,
-                    irClass,
-                    factoryDesc
-                )!!
-            })
+                    val factoryDesc =
+                        ReificationContext.getReificationContext<MemberDescriptor?>(declaration, ReificationContext.ContextTypes.DESC)
+                            ?: with(
+                                createFactoryMethodDescriptor(classDescriptor, declaration)
+                            ) {
+                                ReificationContext.register(classDescriptor, ReificationContext.ContextTypes.DESC, this)
+                                this
+                            }
+                    declarationGenerator.generateClassMemberDeclaration(
+                        declaration,
+                        irClass,
+                        factoryDesc
+                    )!!
+                })
 
         }
         // generate synthetic nested classes (including companion)

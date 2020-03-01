@@ -45,7 +45,6 @@ class DescriptorRegisterCall(
 
     fun createCallDescriptor() {
         registerResolvedCallDescriptionForFactoryMethod(
-            clazz,
             (registerCall.parent as KtDotQualifiedExpression).operationTokenNode
         )
         val lambdaExpression = PsiTreeUtil.findChildOfType(registerCall, KtLambdaExpression::class.java)
@@ -88,7 +87,6 @@ class DescriptorRegisterCall(
 
 
     private fun registerResolvedCallDescriptionForFactoryMethod(
-        clazz: LazyClassDescriptor,
         callExpressionNode: ASTNode
     ): ResolvedCall<out CallableDescriptor>? {
 

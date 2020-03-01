@@ -8,6 +8,7 @@ package org.jetbrains.kotlin.scripting.extensions
 import org.jetbrains.kotlin.descriptors.ClassDescriptor
 import org.jetbrains.kotlin.descriptors.PackageFragmentDescriptor
 import org.jetbrains.kotlin.name.Name
+import org.jetbrains.kotlin.resolve.descriptorUtil.hasCompanionObject
 import org.jetbrains.kotlin.resolve.extensions.SyntheticResolveExtension
 import org.jetbrains.kotlin.resolve.lazy.LazyClassContext
 import org.jetbrains.kotlin.resolve.lazy.ResolveSession
@@ -28,4 +29,7 @@ class ScriptingResolveExtension : SyntheticResolveExtension {
 
         super.generateSyntheticClasses(thisDescriptor, name, ctx, declarationProvider, result)
     }
+
+    // TODO: TE Not this way
+    override fun getSyntheticCompanionObjectNameIfNeeded(thisDescriptor: ClassDescriptor): Name? = Name.identifier("Companion")
 }

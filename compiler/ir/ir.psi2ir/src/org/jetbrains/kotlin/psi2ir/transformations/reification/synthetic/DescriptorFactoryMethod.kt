@@ -72,29 +72,27 @@ class DescriptorFactoryMethodGenerator(val project: Project, val clazz: LazyClas
     }
 
     fun generateDescriptorFactoryMethodIfNeeded(clazz: ClassDescriptorWithResolutionScopes) {
-        if (clazz is LazyClassDescriptor) {
-            if (ReificationContext.getReificationContext<KtNamedFunction?>(
-                    clazz,
-                    ReificationContext.ContextTypes.DESC_FACTORY_EXPRESSION
-                ) == null
-            ) {
-                val expression = createByFactory()
-                ReificationContext.register(clazz, ReificationContext.ContextTypes.DESC_FACTORY_EXPRESSION, expression)
-                val desc = createFactoryMethodDescriptor(clazz, expression)
-                ReificationContext.register(expression, ReificationContext.ContextTypes.DESC, desc)
-            }
+        if (ReificationContext.getReificationContext<KtNamedFunction?>(
+                clazz,
+                ReificationContext.ContextTypes.DESC_FACTORY_EXPRESSION
+            ) == null
+        ) {
+            val expression = createByFactory()
+            ReificationContext.register(clazz, ReificationContext.ContextTypes.DESC_FACTORY_EXPRESSION, expression)
+            val desc = createFactoryMethodDescriptor(clazz, expression)
+            ReificationContext.register(expression, ReificationContext.ContextTypes.DESC, desc)
         }
     }
 
     fun createFactoryMethodDescriptor(
-        clazz: LazyClassDescriptor,
+        clazzCompanion: ClassDescriptor,
         declaration: KtNamedFunction
     ): SimpleFunctionDescriptorImpl {
         val desc = SimpleFunctionDescriptorImpl.create(
-            clazz, Annotations.EMPTY,
+            clazzCompanion, Annotations.EMPTY,
             Name.identifier("createTD"),
             CallableMemberDescriptor.Kind.DECLARATION,
-            clazz.source
+            clazzCompanion.source
         )
 
         val returnType = clazz.computeExternalType(declaration.typeReference)
@@ -109,7 +107,7 @@ class DescriptorFactoryMethodGenerator(val project: Project, val clazz: LazyClas
         )
         return desc.initialize(
             null,
-            clazz.thisAsReceiverParameter,
+            clazzCompanion.thisAsReceiverParameter,
             emptyList(),
             listOf(parameter),
             returnType,
@@ -125,7 +123,7 @@ class DescriptorFactoryMethodGenerator(val project: Project, val clazz: LazyClas
         }
     }
 
-    fun generateFactoryMethodForReifiedDescriptor(clazz: LazyClassDescriptor): KtNamedFunction {
+    fun generateFactoryMethodForReifiedDescriptor(): KtNamedFunction {
         return createByFactory()
     }
 
