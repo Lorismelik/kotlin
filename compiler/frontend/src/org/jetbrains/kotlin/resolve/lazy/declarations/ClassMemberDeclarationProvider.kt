@@ -20,6 +20,7 @@ import org.jetbrains.kotlin.psi.KtObjectDeclaration
 import org.jetbrains.kotlin.psi.KtParameter
 import org.jetbrains.kotlin.psi.KtPureClassOrObject
 import org.jetbrains.kotlin.resolve.lazy.data.KtClassLikeInfo
+import org.jetbrains.kotlin.resolve.reification.ReificationResolver
 
 interface ClassMemberDeclarationProvider : DeclarationProvider {
     val ownerInfo: KtClassLikeInfo? // is null for synthetic classes/object that don't present in the source code
@@ -27,4 +28,6 @@ interface ClassMemberDeclarationProvider : DeclarationProvider {
     val correspondingClassOrObject: KtPureClassOrObject? get() = ownerInfo?.correspondingClassOrObject
     val primaryConstructorParameters: List<KtParameter> get() = ownerInfo?.primaryConstructorParameters ?: emptyList()
     val companionObjects: List<KtObjectDeclaration> get() = ownerInfo?.companionObjects ?: emptyList()
+    val reificationExtraParameter: KtParameter? get() = ownerInfo?.let { ReificationResolver.resolveConstructorParameter(it.correspondingClassOrObject) }
+    fun addReificationModifications()
 }

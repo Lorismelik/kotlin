@@ -367,7 +367,11 @@ open class LazyClassMemberScope(
         val primaryConstructor = getPrimaryConstructor() ?: return
 
         val valueParameterDescriptors = primaryConstructor.valueParameters
-        val primaryConstructorParameters = declarationProvider.primaryConstructorParameters
+        val primaryConstructorParameters = if (this.thisDescriptor.isReified) {
+            declarationProvider.primaryConstructorParameters + listOf(declarationProvider.reificationExtraParameter!!)
+        } else {
+            declarationProvider.primaryConstructorParameters
+        }
         assert(valueParameterDescriptors.size == primaryConstructorParameters.size) {
             "From descriptor: ${valueParameterDescriptors.size} but from PSI: ${primaryConstructorParameters.size}"
         }

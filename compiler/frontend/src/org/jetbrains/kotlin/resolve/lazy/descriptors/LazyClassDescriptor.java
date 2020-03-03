@@ -102,7 +102,11 @@ public class LazyClassDescriptor extends ClassDescriptorBase implements ClassDes
     private final NotNullLazyValue<Collection<ClassDescriptor>> sealedSubclasses;
     private final boolean isReified;
 
-    private static boolean isReifiedModificationsNeeded(@NotNull KtClassLikeInfo classLikeInfo) {
+    private static boolean isReifiedModificationsNeeded(@NotNull KtClassLikeInfo classLikeInfo, Collection<KotlinType> supertypes) {
+        if (supertypes.stream().anyMatch(x -> {
+            ClassDescriptor supertypeDesc = (ClassDescriptor) x.getConstructor().getDeclarationDescriptor();
+            return supertypeDesc.isReified();
+        })) {return true;}
         KtTypeParameterList typeParameterList = classLikeInfo.getTypeParameterList();
         if (typeParameterList == null) return false;
         List<KtTypeParameter> typeParameters = typeParameterList.getParameters();
@@ -127,11 +131,7 @@ public class LazyClassDescriptor extends ClassDescriptorBase implements ClassDes
             this.c.getTrace().record(BindingContext.CLASS, classOrObject, this);
         }
         this.c.getTrace().record(BindingContext.FQNAME_TO_CLASS_DESCRIPTOR, DescriptorUtils.getFqName(this), this);
-        this.isReified = isReifiedModificationsNeeded(classLikeInfo);
-        this.declarationProvider = this.isReified?
-                                   c.getDeclarationProviderFactory().getReifiedClassMemberDeclarationProvider(classLikeInfo)
-                                   : c.getDeclarationProviderFactory().getClassMemberDeclarationProvider(classLikeInfo);
-
+        this.declarationProvider = c.getDeclarationProviderFactory().getClassMemberDeclarationProvider(classLikeInfo);
 
         StorageManager storageManager = c.getStorageManager();
 
@@ -274,6 +274,10 @@ public class LazyClassDescriptor extends ClassDescriptorBase implements ClassDes
 
         // TODO: only consider classes from the same file, not the whole package fragment
         this.sealedSubclasses = storageManager.createLazyValue(() -> DescriptorUtilsKt.computeSealedSubclasses(this));
+        this.isReified = isReifiedModificationsNeeded(classLikeInfo, this.computeSupertypes());
+        if (isReified) {
+            this.declarationProvider.addReificationModifications();
+        }
     }
 
     private static boolean isIllegalInner(@NotNull DeclarationDescriptor descriptor) {

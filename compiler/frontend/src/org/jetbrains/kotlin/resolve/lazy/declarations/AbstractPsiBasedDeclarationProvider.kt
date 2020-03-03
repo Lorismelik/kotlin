@@ -25,6 +25,7 @@ import org.jetbrains.kotlin.resolve.lazy.data.KtClassOrObjectInfo
 import org.jetbrains.kotlin.resolve.lazy.data.KtScriptInfo
 import org.jetbrains.kotlin.resolve.scopes.DescriptorKindFilter
 import org.jetbrains.kotlin.storage.StorageManager
+import org.jetbrains.kotlin.storage.getValue
 import java.util.*
 
 abstract class AbstractPsiBasedDeclarationProvider(storageManager: StorageManager) : DeclarationProvider {
@@ -85,6 +86,11 @@ abstract class AbstractPsiBasedDeclarationProvider(storageManager: StorageManage
     }
 
     protected abstract fun doCreateIndex(index: Index)
+
+    protected fun addReificationDeclarationToIndex(declaration: KtDeclaration) {
+        index().putToIndex(declaration)
+    }
+
 
     internal fun toInfoString() = toString() + ": " + index().toString()
 

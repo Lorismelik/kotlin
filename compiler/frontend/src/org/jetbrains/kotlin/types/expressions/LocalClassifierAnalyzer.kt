@@ -152,10 +152,6 @@ class LocalClassDescriptorHolder(
                             return PsiBasedClassMemberDeclarationProvider(storageManager, classLikeInfo)
                         }
 
-                        override fun getReifiedClassMemberDeclarationProvider(classLikeInfo: KtClassLikeInfo): ClassMemberDeclarationProvider {
-                            throw UnsupportedOperationException()
-                        }
-
                         override fun getPackageMemberDeclarationProvider(packageFqName: FqName): PackageMemberDeclarationProvider? {
                             throw UnsupportedOperationException("Should not be called for top-level declarations")
                         }

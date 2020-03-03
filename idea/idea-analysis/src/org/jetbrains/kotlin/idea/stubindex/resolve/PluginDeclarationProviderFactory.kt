@@ -48,10 +48,6 @@ class PluginDeclarationProviderFactory(
         return PsiBasedClassMemberDeclarationProvider(storageManager, classLikeInfo)
     }
 
-    override fun getReifiedClassMemberDeclarationProvider(classLikeInfo: KtClassLikeInfo): ClassMemberDeclarationProvider {
-        throw UnsupportedOperationException()
-    }
-
     override fun createPackageMemberDeclarationProvider(name: FqName): PackageMemberDeclarationProvider? {
         val fileBasedProvider = fileBasedDeclarationProviderFactory.getPackageMemberDeclarationProvider(name)
         val stubBasedProvider = getStubBasedPackageMemberDeclarationProvider(name)

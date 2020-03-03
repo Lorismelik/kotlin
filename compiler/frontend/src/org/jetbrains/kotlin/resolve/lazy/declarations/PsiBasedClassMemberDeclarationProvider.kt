@@ -36,5 +36,9 @@ class PsiBasedClassMemberDeclarationProvider(
         }
     }
 
+    override fun addReificationModifications() {
+        this.reificationExtraParameter?.let { this.addReificationDeclarationToIndex(it) }
+    }
+
     override fun toString() = "Declarations for $ownerInfo"
 }

@@ -148,10 +148,6 @@ class ReplCodeAnalyzer(environment: KotlinCoreEnvironment) {
             return delegateFactory.getClassMemberDeclarationProvider(classLikeInfo)
         }
 
-        override fun getReifiedClassMemberDeclarationProvider(classLikeInfo: KtClassLikeInfo): ClassMemberDeclarationProvider {
-            return delegateFactory.getReifiedClassMemberDeclarationProvider(classLikeInfo)
-        }
-
         override fun getPackageMemberDeclarationProvider(packageFqName: FqName): PackageMemberDeclarationProvider? {
             if (packageFqName.isRoot) {
                 return rootPackageProvider

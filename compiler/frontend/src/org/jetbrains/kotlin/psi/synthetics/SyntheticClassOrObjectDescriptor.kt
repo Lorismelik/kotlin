@@ -135,6 +135,7 @@ class SyntheticClassOrObjectDescriptor(
     private class SyntheticClassMemberDeclarationProvider(
         override val correspondingClassOrObject: KtPureClassOrObject
     ) : ClassMemberDeclarationProvider {
+        override fun addReificationModifications() {}
         override val ownerInfo: KtClassLikeInfo? = null
         override fun getDeclarations(kindFilter: DescriptorKindFilter, nameFilter: (Name) -> Boolean): List<KtDeclaration> = emptyList()
         override fun getFunctionDeclarations(name: Name): Collection<KtNamedFunction> = emptyList()

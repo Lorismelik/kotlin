@@ -12,17 +12,19 @@ import org.jetbrains.kotlin.resolve.reification.ReificationContext.register
 
 
 object ReificationResolver {
-    fun resolveConstructorParameter(containingClass: KtClassOrObject): KtParameter {
-        return getReificationContext<KtParameter>(
-            containingClass,
-            ContextTypes.CTOR_PARAM
-        ) ?: let {
-            val param = KtPsiFactory(containingClass.project, false).createParameter("val desc: kotlin.reification._D.Cla")
-            register(
+    fun resolveConstructorParameter(containingClass: KtClassOrObject?): KtParameter? {
+        return containingClass?.let {
+            getReificationContext<KtParameter>(
                 containingClass,
-                ContextTypes.CTOR_PARAM,
-                param
-            ) as KtParameter
+                ContextTypes.CTOR_PARAM
+            ) ?: let {
+                val param = KtPsiFactory(containingClass.project, false).createParameter("val desc: kotlin.reification._D.Cla")
+                register(
+                    containingClass,
+                    ContextTypes.CTOR_PARAM,
+                    param
+                ) as KtParameter
+            }
         }
     }
 }
