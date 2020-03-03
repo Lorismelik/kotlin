@@ -30,6 +30,8 @@ class ScriptingResolveExtension : SyntheticResolveExtension {
         super.generateSyntheticClasses(thisDescriptor, name, ctx, declarationProvider, result)
     }
 
-    // TODO: TE Not this way
-    override fun getSyntheticCompanionObjectNameIfNeeded(thisDescriptor: ClassDescriptor): Name? = Name.identifier("Companion")
+
+    override fun getSyntheticCompanionObjectNameIfNeeded(thisDescriptor: ClassDescriptor): Name? =
+        if (thisDescriptor.isReified) Name.identifier("Companion")
+        else null
 }
