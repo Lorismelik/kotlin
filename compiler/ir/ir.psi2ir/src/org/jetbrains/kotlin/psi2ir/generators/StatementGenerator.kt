@@ -357,14 +357,15 @@ class StatementGenerator(
             return CallGenerator(this).generateCall(expression, functionCall, IrStatementOrigin.INVOKE)
         }
         if (resolvedCall.candidateDescriptor is ClassConstructorDescriptor &&
-            resolvedCall.candidateDescriptor.typeParameters.any { it.isReified }
+            (resolvedCall.candidateDescriptor.containingDeclaration as ClassDescriptor).isReified
         ) {
             val classDesc = resolvedCall.candidateDescriptor.containingDeclaration as LazyClassDescriptor
             DescriptorFactoryMethodGenerator(
                 expression.project,
-                classDesc
+                classDesc,
+                this.context
             ).generateDescriptorFactoryMethodIfNeeded(classDesc.companionObjectDescriptor!!)
-            val newArg = createDescriptorArgument(resolvedCall, classDesc, this.scopeOwner)
+            val newArg = createDescriptorArgument(resolvedCall, classDesc, this.scopeOwner, this.context)
             resolvedCall = (resolvedCall as ResolvedCallImpl).createNewResolvedConstructorCall(
                 resolvedCall.candidateDescriptor as ClassConstructorDescriptor,
                 CallMaker.makeCall(
@@ -376,7 +377,7 @@ class StatementGenerator(
                 )
             )
             ValueArgumentsToParametersMapper.mapValueArgumentsToParameters(resolvedCall.call, TracingStrategy.EMPTY, resolvedCall)
-            (resolvedCall as ResolvedCallImpl).setResultingSubstitutor(TypeSubstitutor.create(resolvedCall.candidateDescriptor.returnType!!))
+            (resolvedCall as ResolvedCallImpl).setResultingSubstitutor(TypeSubstitutor.create(resolvedCall.candidateDescriptor!!.returnType))
             resolvedCall.markCallAsCompleted()
         }
 

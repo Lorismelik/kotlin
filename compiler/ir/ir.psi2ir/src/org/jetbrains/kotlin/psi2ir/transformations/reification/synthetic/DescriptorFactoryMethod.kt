@@ -17,10 +17,15 @@ import org.jetbrains.kotlin.descriptors.annotations.Annotations
 import org.jetbrains.kotlin.descriptors.impl.AnonymousFunctionDescriptor
 import org.jetbrains.kotlin.descriptors.impl.SimpleFunctionDescriptorImpl
 import org.jetbrains.kotlin.descriptors.impl.ValueParameterDescriptorImpl
+import org.jetbrains.kotlin.ir.declarations.impl.IrClassImpl
+import org.jetbrains.kotlin.ir.symbols.impl.IrTypeParameterSymbolImpl
+import org.jetbrains.kotlin.ir.types.IrSimpleType
+import org.jetbrains.kotlin.ir.types.impl.IrSimpleTypeImpl
 import org.jetbrains.kotlin.lexer.KtTokens
 import org.jetbrains.kotlin.name.Name
 import org.jetbrains.kotlin.psi.*
 import org.jetbrains.kotlin.psi2ir.findSingleFunction
+import org.jetbrains.kotlin.psi2ir.generators.GeneratorContext
 import org.jetbrains.kotlin.psi2ir.transformations.reification.*
 import org.jetbrains.kotlin.resolve.BindingContext
 import org.jetbrains.kotlin.resolve.DelegatingBindingTrace
@@ -33,10 +38,12 @@ import org.jetbrains.kotlin.resolve.calls.tasks.ExplicitReceiverKind
 import org.jetbrains.kotlin.resolve.calls.tasks.ResolutionCandidate
 import org.jetbrains.kotlin.resolve.calls.tasks.TracingStrategy
 import org.jetbrains.kotlin.resolve.calls.util.CallMaker
+import org.jetbrains.kotlin.resolve.descriptorUtil.getSuperClassNotAny
 import org.jetbrains.kotlin.resolve.lazy.descriptors.LazyClassDescriptor
 import org.jetbrains.kotlin.resolve.reification.ReificationContext
 import org.jetbrains.kotlin.resolve.scopes.receivers.ClassQualifier
 import org.jetbrains.kotlin.resolve.source.KotlinSourceElement
+import org.jetbrains.kotlin.types.typeUtil.isTypeParameter
 import java.lang.StringBuilder
 
 
@@ -45,20 +52,57 @@ import java.lang.StringBuilder
 /*fun createTD(p: Array<_D>): _D {
     return kotlin.reification._D.Man.register({it is C<*>}, p )
 }*/
-class DescriptorFactoryMethodGenerator(val project: Project, val clazz: LazyClassDescriptor) {
+class DescriptorFactoryMethodGenerator(val project: Project, val clazz: LazyClassDescriptor, val context: GeneratorContext) {
 
     var registerCall: KtCallExpression? = null
     var argumentReference: KtNameReferenceExpression? = null
 
-
     private fun createByFactory(): KtNamedFunction {
         val typeRef = createTextTypeReferenceWithStarProjection()
+        val fatherDescriptor = fatherDescriptorRegisteringCode()
         return KtPsiFactory(project, false).createFunction(
-            "fun createTD(p: Array<kotlin.reification._D>): kotlin.reification._D { return kotlin.reification._D.Man.register({it is $typeRef}, p) }"
+            "fun createTD(p: Array<kotlin.reification._D.Cla>): kotlin.reification._D.Cla { return kotlin.reification._D.Man.register({it is $typeRef}, $fatherDescriptor, p) }"
         ).apply {
             registerCall = PsiTreeUtil.findChildOfType(this, KtCallExpression::class.java)
             val valueArgList = PsiTreeUtil.findChildOfType(this, KtValueArgumentList::class.java)
             argumentReference = PsiTreeUtil.findChildOfType(valueArgList!!.arguments.last(), KtNameReferenceExpression::class.java)
+        }
+    }
+
+    private fun fatherDescriptorRegisteringCode(): String {
+        val supertype = clazz.getSuperClassNotAny()
+        return if (supertype == null || !supertype.isReified) "null"
+        else {
+            val childReifiedTypeParams = clazz.declaredReifiedTypeParameters
+            createCodeForDescriptorFactoryMethodCall({
+                                                         val reifiedTypeInstances =
+                                                             clazz.defaultType.constructor.supertypes.first()
+                                                                 .arguments.filterIndexed { index, _ ->
+                                                                 supertype.declaredTypeParameters[index].isReified
+                                                             }
+                                                         reifiedTypeInstances.map {
+                                                             val arg = it.type
+                                                             with(StringBuilder()) {
+                                                                 if (arg.isTypeParameter()) {
+                                                                     val index =
+                                                                         childReifiedTypeParams.indexOfFirst { param -> param.defaultType.hashCode() == arg.hashCode() }
+                                                                     append("p[$index]")
+                                                                 } else {
+                                                                     append("kotlin.reification._D.Man.register({it is ")
+                                                                     append(arg.constructor)
+                                                                     if (arg.arguments.isNotEmpty()) arg.arguments.joinTo(
+                                                                         this,
+                                                                         separator = ", ",
+                                                                         prefix = "<",
+                                                                         postfix = ">"
+                                                                     )
+                                                                     if (arg.isMarkedNullable) append("?")
+                                                                     append("}, null, arrayOf<_D.Cla>())")
+                                                                 }
+                                                             }
+                                                         }.joinToString()
+                                                     }, supertype)
+
         }
     }
 
@@ -115,7 +159,7 @@ class DescriptorFactoryMethodGenerator(val project: Project, val clazz: LazyClas
             Visibilities.PUBLIC
         ).also {
 
-            DescriptorRegisterCall(project, clazz, registerCall!!, it) {
+            DescriptorRegisterCall(project, clazz, registerCall!!, it, context) {
                 registerParameterDescriptorArrayResolvedCallForFactoryMethod(
                     desc.valueParameters.first()
                 )

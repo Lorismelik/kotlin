@@ -66,11 +66,13 @@ fun createDescriptorInstanceCheck(
                 KtDotQualifiedExpression::class.java
             )!!
         )
-        registerDescriptorCall(clazz,
-                               PsiTreeUtil.findChildOfType(
-                                   this,
-                                   KtNameReferenceExpression::class.java
-                               )!!)
+        registerDescriptorCall(
+            clazz,
+            PsiTreeUtil.findChildOfType(
+                this,
+                KtNameReferenceExpression::class.java
+            )!!
+        )
     }
 }
 
@@ -89,14 +91,14 @@ private fun registerIndexConstant(expression: KtConstantExpression, index: Int, 
 }
 
 private fun registerIsInstanceCall(expression: KtExpression, clazz: LazyClassDescriptor) {
-    val candidateDesc = clazz.computeExternalType(createHiddenTypeReference(expression.project))
+    val candidateDesc = clazz.computeExternalType(createHiddenTypeReference(expression.project, "Cla"))
         .memberScope.findSingleFunction(Name.identifier("isInstance"))
     val receiver = ExpressionReceiver.create(
         PsiTreeUtil.findChildOfType(
             expression,
             KtArrayAccessExpression::class.java
         )!!,
-        clazz.computeExternalType(createHiddenTypeReference(expression.project)),
+        clazz.computeExternalType(createHiddenTypeReference(expression.project, "Cla")),
         BindingContext.EMPTY
     )
     val isInstanceCallExpression = PsiTreeUtil.findChildOfType(
@@ -136,7 +138,7 @@ private fun registerArrayAccessCall(expression: KtExpression, clazz: LazyClassDe
         clazz,
         arrayAccessExpression
     )
-    val type = clazz.computeExternalType(KtPsiFactory(expression.project, false).createType("Array<_D>"))
+    val type = clazz.computeExternalType(KtPsiFactory(expression.project, false).createType("Array<_D.Cla>"))
     val receiver = ExpressionReceiver.create(
         arrayAccessExpression.arrayExpression!!,
         type,
@@ -247,7 +249,7 @@ fun getArrayGetDescriptor(descriptor: LazyClassDescriptor, element: KtArrayAcces
             listOf(
                 TypeProjectionImpl(
                     Variance.INVARIANT,
-                    descriptor.computeExternalType(createHiddenTypeReference(element.project))
+                    descriptor.computeExternalType(createHiddenTypeReference(element.project, "Cla"))
                 )
             )
         ).getContributedFunctions(

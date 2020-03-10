@@ -19,6 +19,7 @@ package org.jetbrains.kotlin.psi2ir.generators
 import org.jetbrains.kotlin.builtins.KotlinBuiltIns
 import org.jetbrains.kotlin.descriptors.*
 import org.jetbrains.kotlin.ir.declarations.*
+import org.jetbrains.kotlin.ir.declarations.impl.IrClassImpl
 import org.jetbrains.kotlin.ir.descriptors.IrImplementingDelegateDescriptorImpl
 import org.jetbrains.kotlin.ir.expressions.impl.*
 import org.jetbrains.kotlin.ir.expressions.mapValueParameters
@@ -77,6 +78,8 @@ class ClassGenerator(
 
     fun generateClass(ktClassOrObject: KtPureClassOrObject): IrClass {
         val classDescriptor = ktClassOrObject.findClassDescriptor(this.context.bindingContext)
+        val superTypes = classDescriptor.getSuperClassOrAny()
+        val lol = classDescriptor.defaultType.constructor.supertypes
         val isReified = if (classDescriptor.isCompanionObject)
             (classDescriptor.containingDeclaration as LazyClassDescriptor).isReified else
             classDescriptor.isReified
@@ -428,7 +431,8 @@ class ClassGenerator(
                 with(
                     DescriptorFactoryMethodGenerator(
                         ktClassOrObject.containingKtFile.project,
-                        classDescriptor.containingDeclaration as LazyClassDescriptor
+                        classDescriptor.containingDeclaration as LazyClassDescriptor,
+                        this.context
                     )
                 ) {
                     val declaration =

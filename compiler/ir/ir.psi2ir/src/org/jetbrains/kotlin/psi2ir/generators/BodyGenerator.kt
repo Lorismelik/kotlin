@@ -30,13 +30,21 @@ import org.jetbrains.kotlin.psi.psiUtil.pureStartOffset
 import org.jetbrains.kotlin.psi.psiUtil.startOffsetSkippingComments
 import org.jetbrains.kotlin.psi.synthetics.findClassDescriptor
 import org.jetbrains.kotlin.psi2ir.intermediate.VariableLValue
+import org.jetbrains.kotlin.psi2ir.transformations.reification.synthetic.createDescriptorArgument
+import org.jetbrains.kotlin.psi2ir.transformations.reification.synthetic.createSuperCallArgument
 import org.jetbrains.kotlin.resolve.BindingContext
 import org.jetbrains.kotlin.resolve.bindingContextUtil.isUsedAsExpression
 import org.jetbrains.kotlin.resolve.bindingContextUtil.isUsedAsResultOfLambda
+import org.jetbrains.kotlin.resolve.calls.ValueArgumentsToParametersMapper
 import org.jetbrains.kotlin.resolve.calls.model.ResolvedCall
+import org.jetbrains.kotlin.resolve.calls.model.ResolvedCallImpl
+import org.jetbrains.kotlin.resolve.calls.tasks.TracingStrategy
+import org.jetbrains.kotlin.resolve.calls.util.CallMaker
 import org.jetbrains.kotlin.resolve.descriptorUtil.getSuperClassOrAny
+import org.jetbrains.kotlin.resolve.lazy.descriptors.LazyClassDescriptor
 import org.jetbrains.kotlin.resolve.reification.ReificationContext
 import org.jetbrains.kotlin.types.KotlinType
+import org.jetbrains.kotlin.types.TypeSubstitutor
 import java.util.*
 
 class BodyGenerator(
@@ -241,7 +249,27 @@ class BodyGenerator(
                 (ktClassOrObject as? KtClassOrObject)?.getSuperTypeList()?.let { ktSuperTypeList ->
                     for (ktSuperTypeListEntry in ktSuperTypeList.entries) {
                         if (ktSuperTypeListEntry is KtSuperTypeCallEntry) {
-                            val superConstructorCall = statementGenerator.pregenerateCall(getResolvedCall(ktSuperTypeListEntry)!!)
+                            var call = getResolvedCall(ktSuperTypeListEntry)!!
+                            if (call.candidateDescriptor is ClassConstructorDescriptor && (call.candidateDescriptor.containingDeclaration as LazyClassDescriptor).isReified) {
+                                val newArg = createSuperCallArgument(
+                                    call,
+                                    classDescriptor as LazyClassDescriptor
+                                )
+                                call = (call as ResolvedCallImpl).createNewResolvedConstructorCall(
+                                    call.candidateDescriptor as ClassConstructorDescriptor,
+                                    CallMaker.makeCall(
+                                        call.call.callElement,
+                                        call.call.explicitReceiver,
+                                        call.call.callOperationNode,
+                                        call.call.calleeExpression,
+                                        mutableListOf<KtValueArgument>() + ktSuperTypeListEntry.valueArguments + newArg
+                                    )
+                                )
+                                ValueArgumentsToParametersMapper.mapValueArgumentsToParameters(call.call, TracingStrategy.EMPTY, call)
+                                (call as ResolvedCallImpl).setResultingSubstitutor(TypeSubstitutor.create(call.candidateDescriptor.returnType!!))
+                                call.markCallAsCompleted()
+                            }
+                            val superConstructorCall = statementGenerator.pregenerateCall(call)
                             val irSuperConstructorCall = CallGenerator(statementGenerator).generateDelegatingConstructorCall(
                                 ktSuperTypeListEntry.startOffsetSkippingComments, ktSuperTypeListEntry.endOffset, superConstructorCall
                             )

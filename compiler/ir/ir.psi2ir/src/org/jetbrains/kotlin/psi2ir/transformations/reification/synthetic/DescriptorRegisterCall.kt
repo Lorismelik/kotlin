@@ -17,6 +17,7 @@ import org.jetbrains.kotlin.lexer.KtTokens
 import org.jetbrains.kotlin.name.Name
 import org.jetbrains.kotlin.psi.*
 import org.jetbrains.kotlin.psi2ir.findSingleFunction
+import org.jetbrains.kotlin.psi2ir.generators.GeneratorContext
 import org.jetbrains.kotlin.psi2ir.transformations.reification.createHiddenTypeReference
 import org.jetbrains.kotlin.resolve.BindingContext
 import org.jetbrains.kotlin.resolve.DelegatingBindingTrace
@@ -29,6 +30,9 @@ import org.jetbrains.kotlin.resolve.calls.tasks.ExplicitReceiverKind
 import org.jetbrains.kotlin.resolve.calls.tasks.ResolutionCandidate
 import org.jetbrains.kotlin.resolve.calls.tasks.TracingStrategy
 import org.jetbrains.kotlin.resolve.calls.util.CallMaker
+import org.jetbrains.kotlin.resolve.constants.CompileTimeConstant
+import org.jetbrains.kotlin.resolve.constants.NullValue
+import org.jetbrains.kotlin.resolve.constants.TypedCompileTimeConstant
 import org.jetbrains.kotlin.resolve.lazy.descriptors.LazyClassDescriptor
 import org.jetbrains.kotlin.resolve.reification.ReificationContext
 import org.jetbrains.kotlin.resolve.scopes.receivers.ClassQualifier
@@ -40,6 +44,7 @@ class DescriptorRegisterCall(
     val clazz: LazyClassDescriptor,
     private val registerCall: KtCallExpression,
     val containingDeclaration: DeclarationDescriptor,
+    val context: GeneratorContext,
     private val registerArrayCall: (() -> Unit)? = null
 ) {
 
@@ -47,7 +52,8 @@ class DescriptorRegisterCall(
         registerResolvedCallDescriptionForFactoryMethod(
             (registerCall.parent as KtDotQualifiedExpression).operationTokenNode
         )
-        val lambdaExpression = PsiTreeUtil.findChildOfType(registerCall, KtLambdaExpression::class.java)
+        // 1 argument pureCheck
+        val lambdaExpression = PsiTreeUtil.findChildOfType(registerCall.valueArguments[0], KtLambdaExpression::class.java)
         val isExpression = PsiTreeUtil.findChildOfType(lambdaExpression, KtIsExpression::class.java)
         ReificationContext.register(
             lambdaExpression!!.bodyExpression!!.statements.last(),
@@ -82,9 +88,27 @@ class DescriptorRegisterCall(
             isExpression.leftHandSide as KtNameReferenceExpression,
             lambdaDescriptor.valueParameters[0]
         )
+        //2 argument father descriptor
+        registerFatherDescriptor()
+        //3 argument parameters array
         registerArrayCall?.invoke()
     }
 
+    private fun registerFatherDescriptor() {
+        // father desc is second argument in call
+        val fatherArgument = registerCall.valueArguments[1].getArgumentExpression()
+        // father is null
+        if (fatherArgument is KtConstantExpression) {
+            val params = CompileTimeConstant.Parameters(false, false, false, false, false, false, false)
+            val nullConstant = TypedCompileTimeConstant(NullValue(), context.moduleDescriptor, params)
+            ReificationContext.register(fatherArgument, ReificationContext.ContextTypes.CONSTANT, nullConstant)
+            ReificationContext.register(
+                fatherArgument,
+                ReificationContext.ContextTypes.TYPE,
+                context.builtIns.nullableNothingType
+            )
+        }
+    }
 
     private fun registerResolvedCallDescriptionForFactoryMethod(
         callExpressionNode: ASTNode

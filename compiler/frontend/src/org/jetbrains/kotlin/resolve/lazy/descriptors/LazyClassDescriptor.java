@@ -274,7 +274,8 @@ public class LazyClassDescriptor extends ClassDescriptorBase implements ClassDes
 
         // TODO: only consider classes from the same file, not the whole package fragment
         this.sealedSubclasses = storageManager.createLazyValue(() -> DescriptorUtilsKt.computeSealedSubclasses(this));
-        this.isReified = isReifiedModificationsNeeded(classLikeInfo, this.computeSupertypes());
+        this.isReified = !this.isCompanionObject && isReifiedModificationsNeeded(classLikeInfo, this.computeSupertypes());
+
         if (isReified) {
             this.declarationProvider.addReificationModifications();
         }

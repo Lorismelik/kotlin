@@ -19,40 +19,6 @@ fun createHiddenTypeReference(project: Project, typeName: String? = null): KtTyp
     return KtPsiFactory(project, false).createTypeIfPossible(type)!!
 }
 
-fun createHiddenDotQualifiedExpression(typeName: String? = null): CompositeElement {
-    val firstPackage = ASTFactory.composite(KtNodeTypes.REFERENCE_EXPRESSION).apply {
-        rawAddChildren(ASTFactory.leaf(KtTokens.IDENTIFIER, "kotlin"))
-    }
-    val secondPackage = ASTFactory.composite(KtNodeTypes.REFERENCE_EXPRESSION).apply {
-        rawAddChildren(ASTFactory.leaf(KtTokens.IDENTIFIER, "reification"))
-    }
-    val abstractDescriptor = ASTFactory.composite(KtNodeTypes.REFERENCE_EXPRESSION).apply {
-        rawAddChildren(ASTFactory.leaf(KtTokens.IDENTIFIER, "_D"))
-    }
-
-    val prefix = ASTFactory.composite(KtNodeTypes.DOT_QUALIFIED_EXPRESSION).apply {
-        rawAddChildren(ASTFactory.composite(KtNodeTypes.DOT_QUALIFIED_EXPRESSION).apply {
-            rawAddChildren(ASTFactory.composite(KtNodeTypes.DOT_QUALIFIED_EXPRESSION).apply {
-                rawAddChildren(firstPackage)
-            })
-            rawAddChildren(ASTFactory.leaf(KtTokens.DOT, "."))
-            rawAddChildren(secondPackage)
-        })
-        rawAddChildren(ASTFactory.leaf(KtTokens.DOT, "."))
-        rawAddChildren(abstractDescriptor)
-    }
-
-    return if (typeName == null) prefix
-    else ASTFactory.composite(KtNodeTypes.DOT_QUALIFIED_EXPRESSION).apply {
-        rawAddChildren(prefix)
-        rawAddChildren(ASTFactory.leaf(KtTokens.DOT, "."))
-        rawAddChildren(ASTFactory.composite(KtNodeTypes.REFERENCE_EXPRESSION).apply {
-            rawAddChildren(ASTFactory.leaf(KtTokens.IDENTIFIER, typeName))
-        })
-    }
-}
-
-
 // Common Function
 fun createFunction(
     funcName: String,

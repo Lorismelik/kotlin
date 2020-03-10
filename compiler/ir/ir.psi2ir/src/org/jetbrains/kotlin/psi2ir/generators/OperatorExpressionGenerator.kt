@@ -534,6 +534,7 @@ class OperatorExpressionGenerator(statementGenerator: StatementGenerator) : Stat
         val ktOperator = expression.operationReference
 
         val argumentType = context.bindingContext.getType(ktArgument)
+            ?: ReificationContext.getReificationContext<KotlinType?>(ktArgument, ReificationContext.ContextTypes.TYPE)
             ?: throw AssertionError("No type for !! argument")
         val expressionType = argumentType.makeNotNullable()
 

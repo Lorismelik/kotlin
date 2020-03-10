@@ -10,6 +10,7 @@ import com.intellij.lang.ASTNode
 import com.intellij.openapi.project.Project
 import com.intellij.psi.util.PsiTreeUtil
 import org.jetbrains.kotlin.KtNodeTypes
+import org.jetbrains.kotlin.descriptors.ClassifierDescriptor
 import org.jetbrains.kotlin.descriptors.DeclarationDescriptor
 import org.jetbrains.kotlin.descriptors.FunctionDescriptor
 import org.jetbrains.kotlin.descriptors.impl.ClassConstructorDescriptorImpl
@@ -17,6 +18,7 @@ import org.jetbrains.kotlin.incremental.components.NoLookupLocation
 import org.jetbrains.kotlin.lexer.KtTokens
 import org.jetbrains.kotlin.name.Name
 import org.jetbrains.kotlin.psi.*
+import org.jetbrains.kotlin.psi2ir.generators.GeneratorContext
 import org.jetbrains.kotlin.psi2ir.transformations.reification.createHiddenTypeReference
 import org.jetbrains.kotlin.resolve.BindingContext
 import org.jetbrains.kotlin.resolve.DelegatingBindingTrace
@@ -35,17 +37,22 @@ import org.jetbrains.kotlin.resolve.reification.ReificationContext
 import org.jetbrains.kotlin.resolve.scopes.receivers.ClassQualifier
 import org.jetbrains.kotlin.resolve.scopes.utils.findPackage
 import org.jetbrains.kotlin.serialization.deserialization.descriptors.DeserializedSimpleFunctionDescriptor
+import org.jetbrains.kotlin.types.TypeProjection
 import org.jetbrains.kotlin.types.TypeSubstitutor
 
 
 fun createDescriptorArgument(
     resolvedCall: ResolvedCall<*>,
     descriptor: LazyClassDescriptor,
-    scopeOwner: DeclarationDescriptor
+    scopeOwner: DeclarationDescriptor,
+    context: GeneratorContext
 ): KtValueArgument {
     val expression = resolvedCall.call.callElement as KtCallExpression
-    val parametersDescriptors = createTypeParametersDescriptorsSource(resolvedCall)
-    return KtPsiFactory(expression.project, false).createArgument("C.createTd(arrayOf<_D>($parametersDescriptors))").apply {
+    val text = createCodeForDescriptorFactoryMethodCall(
+        { createTypeParametersDescriptorsSource((resolvedCall.resultingDescriptor as ClassConstructorDescriptorImpl).returnType.arguments) },
+        descriptor
+    )
+    return KtPsiFactory(expression.project, false).createArgument(text).apply {
         val arguments =
             PsiTreeUtil.findChildOfType(PsiTreeUtil.findChildOfType(this, KtValueArgumentList::class.java), KtValueArgumentList::class.java)
         arguments?.arguments?.forEach {
@@ -54,14 +61,12 @@ fun createDescriptorArgument(
                 project,
                 descriptor,
                 registerCall,
-                scopeOwner
+                scopeOwner,
+                context
             ) {
                 registerArrayOfResolvedCall(
                     descriptor,
-                    PsiTreeUtil.findChildOfType(
-                        registerCall,
-                        KtValueArgumentList::class.java
-                    )!!.arguments.last().getArgumentExpression() as KtCallExpression,
+                    registerCall.valueArguments.last().getArgumentExpression() as KtCallExpression,
                     project
                 )
             }.createCallDescriptor()
@@ -105,14 +110,18 @@ fun createDescriptorArgument(
     }
 }
 
-fun createTypeParametersDescriptorsSource(resolvedCall: ResolvedCall<*>): String {
-    return (resolvedCall.resultingDescriptor as ClassConstructorDescriptorImpl).returnType.arguments.map {
+fun createCodeForDescriptorFactoryMethodCall(parametersDescriptors: () -> String, descriptor: ClassifierDescriptor): String {
+    return "${descriptor.name.identifier}.createTd(arrayOf<_D.Cla>(${parametersDescriptors.invoke()}))"
+}
+
+fun createTypeParametersDescriptorsSource(args: List<TypeProjection>): String {
+    return args.map {
         with(StringBuilder()) {
             append("kotlin.reification._D.Man.register({it is ")
             append(it.type.constructor)
             if (it.type.arguments.isNotEmpty()) it.type.arguments.joinTo(this, separator = ", ", prefix = "<", postfix = ">")
             if (it.type.isMarkedNullable) append("?")
-            append("}, arrayOf<_D>())")
+            append("}, null, arrayOf<_D.Cla>())")
         }
     }.joinToString()
 }
@@ -138,7 +147,7 @@ fun registerArrayOfResolvedCall(descriptor: LazyClassDescriptor, callExpression:
     ValueArgumentsToParametersMapper.mapValueArgumentsToParameters(call, TracingStrategy.EMPTY, resolvedCall)
     val substitution = FunctionDescriptorUtil.createSubstitution(
         functionDescriptor,
-        listOf(descriptor.computeExternalType(createHiddenTypeReference(project)))
+        listOf(descriptor.computeExternalType(createHiddenTypeReference(project, "Cla")))
     )
     resolvedCall.setResultingSubstitutor(TypeSubstitutor.create(substitution))
     ReificationContext.register(callExpression, ReificationContext.ContextTypes.RESOLVED_CALL, resolvedCall)

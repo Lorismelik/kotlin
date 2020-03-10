@@ -5,9 +5,10 @@
 package kotlin.reification
 
 abstract class _D(
-    val p: Array<_D>,
+    val p: Array<Cla>,
     var id: Int,
-    val pureInstanceCheck: (Any?) -> Boolean
+    val pureInstanceCheck: (Any?) -> Boolean,
+    val father: Cla?
 ) {
     private val hashValue: Int
 
@@ -22,10 +23,11 @@ abstract class _D(
     }
 
     class Cla(
-        p: Array<_D>,
+        p: Array<Cla>,
         pureInstanceCheck: (Any?) -> Boolean,
+        father: Cla?,
         id: Int = -1
-    ) : _D(p, id, pureInstanceCheck) {
+    ) : _D(p, id, pureInstanceCheck, father) {
     }
 
     fun isInstance(o: Any?): Boolean {
@@ -47,10 +49,10 @@ abstract class _D(
     }
 
     object Man {
-        val descTable: HashMap<Int, _D.Cla> = HashMap(101, 0.75f)
+        val descTable: HashMap<Int, Cla> = HashMap(101, 0.75f)
         var countId = 1
-        fun register(pureCheck: (Any?) -> Boolean, p: Array<_D> = arrayOf()): _D.Cla {
-            val desc = Cla(p, pureCheck)
+        fun register(pureCheck: (Any?) -> Boolean, father: Cla?, p: Array<Cla> = arrayOf()): Cla {
+            val desc = Cla(p, pureCheck, father)
             val o = descTable[desc.hashCode()]
             if (o == null) {
                 desc.id = countId++
@@ -62,6 +64,6 @@ abstract class _D(
     }
 
     interface Parametric {
-        fun getD(): _D.Cla
+        fun getD(): Cla
     }
 }
