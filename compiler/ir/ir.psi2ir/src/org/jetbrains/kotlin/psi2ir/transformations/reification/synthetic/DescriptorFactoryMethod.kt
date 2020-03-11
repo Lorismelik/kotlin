@@ -97,7 +97,7 @@ class DescriptorFactoryMethodGenerator(val project: Project, val clazz: LazyClas
                                                                          postfix = ">"
                                                                      )
                                                                      if (arg.isMarkedNullable) append("?")
-                                                                     append("}, null, arrayOf<_D.Cla>())")
+                                                                     append("}, null, arrayOf<kotlin.reification._D.Cla>())")
                                                                  }
                                                              }
                                                          }.joinToString()
@@ -116,7 +116,7 @@ class DescriptorFactoryMethodGenerator(val project: Project, val clazz: LazyClas
     }
 
     fun generateDescriptorFactoryMethodIfNeeded(clazz: ClassDescriptorWithResolutionScopes) {
-        if (ReificationContext.getReificationContext<KtNamedFunction?>(
+         if (ReificationContext.getReificationContext<KtNamedFunction?>(
                 clazz,
                 ReificationContext.ContextTypes.DESC_FACTORY_EXPRESSION
             ) == null

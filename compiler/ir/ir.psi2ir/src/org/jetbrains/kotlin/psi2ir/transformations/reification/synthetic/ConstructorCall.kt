@@ -53,61 +53,82 @@ fun createDescriptorArgument(
         descriptor
     )
     return KtPsiFactory(expression.project, false).createArgument(text).apply {
-        val arguments =
-            PsiTreeUtil.findChildOfType(PsiTreeUtil.findChildOfType(this, KtValueArgumentList::class.java), KtValueArgumentList::class.java)
-        arguments?.arguments?.forEach {
-            val registerCall = PsiTreeUtil.findChildOfType(it, KtCallExpression::class.java)!!
-            DescriptorRegisterCall(
-                project,
-                descriptor,
-                registerCall,
-                scopeOwner,
-                context
-            ) {
-                registerArrayOfResolvedCall(
-                    descriptor,
-                    registerCall.valueArguments.last().getArgumentExpression() as KtCallExpression,
-                    project
-                )
-            }.createCallDescriptor()
-        }
-        val callExpression = (this.getArgumentExpression() as KtDotQualifiedExpression).selectorExpression as KtCallExpression
-        val classReceiverReferenceExpression = KtNameReferenceExpression(ASTFactory.composite(KtNodeTypes.REFERENCE_EXPRESSION).apply {
-            rawAddChildren(ASTFactory.leaf(KtTokens.IDENTIFIER, descriptor.name.identifier))
-        })
-        registerArrayOfResolvedCall(descriptor, callExpression.valueArguments.first().getArgumentExpression() as KtCallExpression, project)
-        val functionDescriptor = ReificationContext.getReificationContext<FunctionDescriptor?>(
-            ReificationContext.getReificationContext(
-                descriptor.companionObjectDescriptor!!,
-                ReificationContext.ContextTypes.DESC_FACTORY_EXPRESSION
-            ), ReificationContext.ContextTypes.DESC
-        )
-        val explicitReceiver = ClassQualifier(classReceiverReferenceExpression, descriptor)
-        ReificationContext.register(
-            classReceiverReferenceExpression,
-            ReificationContext.ContextTypes.DESC,
-            descriptor
-        )
-        val call = CallMaker.makeCall(
-            callExpression,
-            explicitReceiver,
-            (this.getArgumentExpression() as KtDotQualifiedExpression).operationTokenNode,
-            callExpression,
-            callExpression.valueArguments
-        )
-        val resolutionCandidate = ResolutionCandidate.create(
-            call, functionDescriptor!!, explicitReceiver.classValueReceiver, ExplicitReceiverKind.DISPATCH_RECEIVER, null
-        )
-        val resolvedCallCopy = ResolvedCallImpl.create(
-            resolutionCandidate,
-            DelegatingBindingTrace(BindingContext.EMPTY, ""),
-            TracingStrategy.EMPTY,
-            DataFlowInfoForArgumentsImpl(DataFlowInfo.EMPTY, call)
-        )
-        ValueArgumentsToParametersMapper.mapValueArgumentsToParameters(call, TracingStrategy.EMPTY, resolvedCallCopy)
-        ReificationContext.register(callExpression, ReificationContext.ContextTypes.RESOLVED_CALL, resolvedCallCopy)
-        resolvedCallCopy.markCallAsCompleted()
+        registerDescriptorCreatingCall(descriptor, scopeOwner, context, this.getArgumentExpression() as KtDotQualifiedExpression)
     }
+}
+
+fun registerDescriptorCreatingCall(
+    descriptor: LazyClassDescriptor,
+    scopeOwner: DeclarationDescriptor,
+    context: GeneratorContext,
+    expression: KtDotQualifiedExpression
+) {
+    val arguments =
+        PsiTreeUtil.findChildOfType(
+            PsiTreeUtil.findChildOfType(expression, KtValueArgumentList::class.java),
+            KtValueArgumentList::class.java
+        )
+    arguments?.arguments?.forEach {
+        val registerCall = PsiTreeUtil.findChildOfType(it, KtCallExpression::class.java)!!
+        DescriptorRegisterCall(
+            expression.project,
+            descriptor,
+            registerCall,
+            scopeOwner,
+            context
+        ) {
+            registerArrayOfResolvedCall(
+                descriptor,
+                registerCall.valueArguments.last().getArgumentExpression() as KtCallExpression,
+                expression.project
+            )
+        }.createCallDescriptor()
+    }
+    val callExpression = expression.selectorExpression as KtCallExpression
+    val classReceiverReferenceExpression = KtNameReferenceExpression(ASTFactory.composite(KtNodeTypes.REFERENCE_EXPRESSION).apply {
+        rawAddChildren(ASTFactory.leaf(KtTokens.IDENTIFIER, descriptor.name.identifier))
+    })
+    registerArrayOfResolvedCall(
+        descriptor,
+        callExpression.valueArguments.first().getArgumentExpression() as KtCallExpression,
+        expression.project
+    )
+    DescriptorFactoryMethodGenerator(
+        expression.project,
+        descriptor,
+        context
+    ).generateDescriptorFactoryMethodIfNeeded(descriptor.companionObjectDescriptor!!)
+    val functionDescriptor = ReificationContext.getReificationContext<FunctionDescriptor?>(
+        ReificationContext.getReificationContext(
+            descriptor.companionObjectDescriptor!!,
+            ReificationContext.ContextTypes.DESC_FACTORY_EXPRESSION
+        ), ReificationContext.ContextTypes.DESC
+    )
+    val explicitReceiver = ClassQualifier(classReceiverReferenceExpression, descriptor)
+    ReificationContext.register(
+        classReceiverReferenceExpression,
+        ReificationContext.ContextTypes.DESC,
+        descriptor
+    )
+    val call = CallMaker.makeCall(
+        callExpression,
+        explicitReceiver,
+        expression.operationTokenNode,
+        callExpression,
+        callExpression.valueArguments
+    )
+    val resolutionCandidate = ResolutionCandidate.create(
+        call, functionDescriptor!!, explicitReceiver.classValueReceiver, ExplicitReceiverKind.DISPATCH_RECEIVER, null
+    )
+    val resolvedCallCopy = ResolvedCallImpl.create(
+        resolutionCandidate,
+        DelegatingBindingTrace(BindingContext.EMPTY, ""),
+        TracingStrategy.EMPTY,
+        DataFlowInfoForArgumentsImpl(DataFlowInfo.EMPTY, call)
+    )
+    ValueArgumentsToParametersMapper.mapValueArgumentsToParameters(call, TracingStrategy.EMPTY, resolvedCallCopy)
+    ReificationContext.register(callExpression, ReificationContext.ContextTypes.RESOLVED_CALL, resolvedCallCopy)
+    resolvedCallCopy.markCallAsCompleted()
 }
 
 fun createCodeForDescriptorFactoryMethodCall(parametersDescriptors: () -> String, descriptor: ClassifierDescriptor): String {

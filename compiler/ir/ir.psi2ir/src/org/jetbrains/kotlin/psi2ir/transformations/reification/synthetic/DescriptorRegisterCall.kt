@@ -33,6 +33,7 @@ import org.jetbrains.kotlin.resolve.calls.util.CallMaker
 import org.jetbrains.kotlin.resolve.constants.CompileTimeConstant
 import org.jetbrains.kotlin.resolve.constants.NullValue
 import org.jetbrains.kotlin.resolve.constants.TypedCompileTimeConstant
+import org.jetbrains.kotlin.resolve.descriptorUtil.getSuperClassOrAny
 import org.jetbrains.kotlin.resolve.lazy.descriptors.LazyClassDescriptor
 import org.jetbrains.kotlin.resolve.reification.ReificationContext
 import org.jetbrains.kotlin.resolve.scopes.receivers.ClassQualifier
@@ -49,6 +50,7 @@ class DescriptorRegisterCall(
 ) {
 
     fun createCallDescriptor() {
+        // register 'register' call
         registerResolvedCallDescriptionForFactoryMethod(
             (registerCall.parent as KtDotQualifiedExpression).operationTokenNode
         )
@@ -106,6 +108,14 @@ class DescriptorRegisterCall(
                 fatherArgument,
                 ReificationContext.ContextTypes.TYPE,
                 context.builtIns.nullableNothingType
+            )
+        // father is not null
+        } else {
+            registerDescriptorCreatingCall(
+                clazz.getSuperClassOrAny() as LazyClassDescriptor,
+                containingDeclaration,
+                context,
+                fatherArgument as KtDotQualifiedExpression
             )
         }
     }
