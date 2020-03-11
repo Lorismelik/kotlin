@@ -19,6 +19,7 @@ import org.jetbrains.kotlin.psi.*
 import org.jetbrains.kotlin.psi2ir.findSingleFunction
 import org.jetbrains.kotlin.psi2ir.generators.GeneratorContext
 import org.jetbrains.kotlin.psi2ir.transformations.reification.createHiddenTypeReference
+import org.jetbrains.kotlin.psi2ir.transformations.reification.registerResolvedCallForParameter
 import org.jetbrains.kotlin.resolve.BindingContext
 import org.jetbrains.kotlin.resolve.DelegatingBindingTrace
 import org.jetbrains.kotlin.resolve.calls.ValueArgumentsToParametersMapper
@@ -86,17 +87,19 @@ class DescriptorRegisterCall(
         )
         lambdaDescriptor.setReturnType(lambdaReturnType.arguments.last().type)
         ReificationContext.register(lambdaSource, ReificationContext.ContextTypes.DESC, lambdaDescriptor)
-        registerResolvedCallForIsInstance(
+        registerResolvedCallForParameter(
             isExpression.leftHandSide as KtNameReferenceExpression,
             lambdaDescriptor.valueParameters[0]
         )
         //2 argument father descriptor
-        registerFatherDescriptor()
+        val param =
+            if (containingDeclaration is SimpleFunctionDescriptor && containingDeclaration.name.identifier == "createTD") containingDeclaration.valueParameters.first() else null
+        registerFatherDescriptor(param)
         //3 argument parameters array
         registerArrayCall?.invoke()
     }
 
-    private fun registerFatherDescriptor() {
+    private fun registerFatherDescriptor(valueParameter: ValueParameterDescriptor?) {
         // father desc is second argument in call
         val fatherArgument = registerCall.valueArguments[1].getArgumentExpression()
         // father is null
@@ -109,13 +112,15 @@ class DescriptorRegisterCall(
                 ReificationContext.ContextTypes.TYPE,
                 context.builtIns.nullableNothingType
             )
-        // father is not null
+            // father is not null
         } else {
             registerDescriptorCreatingCall(
                 clazz.getSuperClassOrAny() as LazyClassDescriptor,
                 containingDeclaration,
                 context,
-                fatherArgument as KtDotQualifiedExpression
+                fatherArgument as KtDotQualifiedExpression,
+                clazz,
+                valueParameter
             )
         }
     }
@@ -148,21 +153,5 @@ class DescriptorRegisterCall(
         ValueArgumentsToParametersMapper.mapValueArgumentsToParameters(call, TracingStrategy.EMPTY, resolvedCall)
         ReificationContext.register(registerCall, ReificationContext.ContextTypes.RESOLVED_CALL, resolvedCall)
         return resolvedCall
-    }
-
-    private fun registerResolvedCallForIsInstance(referenceExpression: KtNameReferenceExpression, desc: ValueParameterDescriptor) {
-        val call = CallMaker.makeCall(referenceExpression, null, null, referenceExpression, emptyList())
-        val resolvedCall = ResolvedCallImpl(
-            call,
-            desc,
-            null,
-            null,
-            ExplicitReceiverKind.NO_EXPLICIT_RECEIVER,
-            null,
-            DelegatingBindingTrace(BindingContext.EMPTY, ""),
-            TracingStrategy.EMPTY,
-            DataFlowInfoForArgumentsImpl(DataFlowInfo.EMPTY, call)
-        )
-        ReificationContext.register(referenceExpression, ReificationContext.ContextTypes.RESOLVED_CALL, resolvedCall)
     }
 }

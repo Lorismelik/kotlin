@@ -31,6 +31,7 @@ import org.jetbrains.kotlin.resolve.BindingContext
 import org.jetbrains.kotlin.resolve.DelegatingBindingTrace
 import org.jetbrains.kotlin.resolve.calls.ValueArgumentsToParametersMapper
 import org.jetbrains.kotlin.resolve.calls.model.DataFlowInfoForArgumentsImpl
+import org.jetbrains.kotlin.resolve.calls.model.NamedArgumentReference
 import org.jetbrains.kotlin.resolve.calls.model.ResolvedCall
 import org.jetbrains.kotlin.resolve.calls.model.ResolvedCallImpl
 import org.jetbrains.kotlin.resolve.calls.smartcasts.DataFlowInfo
@@ -116,7 +117,7 @@ class DescriptorFactoryMethodGenerator(val project: Project, val clazz: LazyClas
     }
 
     fun generateDescriptorFactoryMethodIfNeeded(clazz: ClassDescriptorWithResolutionScopes) {
-         if (ReificationContext.getReificationContext<KtNamedFunction?>(
+        if (ReificationContext.getReificationContext<KtNamedFunction?>(
                 clazz,
                 ReificationContext.ContextTypes.DESC_FACTORY_EXPRESSION
             ) == null
@@ -160,7 +161,8 @@ class DescriptorFactoryMethodGenerator(val project: Project, val clazz: LazyClas
         ).also {
 
             DescriptorRegisterCall(project, clazz, registerCall!!, it, context) {
-                registerParameterDescriptorArrayResolvedCallForFactoryMethod(
+                registerResolvedCallForParameter(
+                    argumentReference!!,
                     desc.valueParameters.first()
                 )
             }.createCallDescriptor()
@@ -169,23 +171,5 @@ class DescriptorFactoryMethodGenerator(val project: Project, val clazz: LazyClas
 
     fun generateFactoryMethodForReifiedDescriptor(): KtNamedFunction {
         return createByFactory()
-    }
-
-    private fun registerParameterDescriptorArrayResolvedCallForFactoryMethod(
-        desc: ValueParameterDescriptor
-    ) {
-        val call = CallMaker.makeCall(argumentReference, null, null, argumentReference, emptyList())
-        val resolvedCall = ResolvedCallImpl(
-            call,
-            desc,
-            null,
-            null,
-            ExplicitReceiverKind.NO_EXPLICIT_RECEIVER,
-            null,
-            DelegatingBindingTrace(BindingContext.EMPTY, ""),
-            TracingStrategy.EMPTY,
-            DataFlowInfoForArgumentsImpl(DataFlowInfo.EMPTY, call)
-        )
-        ReificationContext.register(argumentReference!!, ReificationContext.ContextTypes.RESOLVED_CALL, resolvedCall)
     }
 }

@@ -13,13 +13,15 @@ import org.jetbrains.kotlin.KtNodeTypes
 import org.jetbrains.kotlin.descriptors.ClassifierDescriptor
 import org.jetbrains.kotlin.descriptors.DeclarationDescriptor
 import org.jetbrains.kotlin.descriptors.FunctionDescriptor
+import org.jetbrains.kotlin.descriptors.ValueParameterDescriptor
 import org.jetbrains.kotlin.descriptors.impl.ClassConstructorDescriptorImpl
 import org.jetbrains.kotlin.incremental.components.NoLookupLocation
 import org.jetbrains.kotlin.lexer.KtTokens
 import org.jetbrains.kotlin.name.Name
 import org.jetbrains.kotlin.psi.*
 import org.jetbrains.kotlin.psi2ir.generators.GeneratorContext
-import org.jetbrains.kotlin.psi2ir.transformations.reification.createHiddenTypeReference
+import org.jetbrains.kotlin.psi2ir.transformations.reification.*
+import org.jetbrains.kotlin.psi2ir.transformations.reification.synthetic.registerDescriptorCall
 import org.jetbrains.kotlin.resolve.BindingContext
 import org.jetbrains.kotlin.resolve.DelegatingBindingTrace
 import org.jetbrains.kotlin.resolve.FunctionDescriptorUtil
@@ -61,7 +63,9 @@ fun registerDescriptorCreatingCall(
     descriptor: LazyClassDescriptor,
     scopeOwner: DeclarationDescriptor,
     context: GeneratorContext,
-    expression: KtDotQualifiedExpression
+    expression: KtDotQualifiedExpression,
+    originalDescriptor: LazyClassDescriptor? = null,
+    originalDescriptorParamsArray: ValueParameterDescriptor? = null
 ) {
     val arguments =
         PsiTreeUtil.findChildOfType(
@@ -69,20 +73,45 @@ fun registerDescriptorCreatingCall(
             KtValueArgumentList::class.java
         )
     arguments?.arguments?.forEach {
-        val registerCall = PsiTreeUtil.findChildOfType(it, KtCallExpression::class.java)!!
-        DescriptorRegisterCall(
-            expression.project,
-            descriptor,
-            registerCall,
-            scopeOwner,
-            context
-        ) {
-            registerArrayOfResolvedCall(
-                descriptor,
-                registerCall.valueArguments.last().getArgumentExpression() as KtCallExpression,
-                expression.project
-            )
-        }.createCallDescriptor()
+        when (val argExpression = it.getArgumentExpression()!!) {
+            is KtDotQualifiedExpression -> {
+                DescriptorRegisterCall(
+                    expression.project,
+                    descriptor,
+                    argExpression.selectorExpression!! as KtCallExpression,
+                    scopeOwner,
+                    context
+                ) {
+                    registerArrayOfResolvedCall(
+                        descriptor,
+                        (argExpression.selectorExpression!! as KtCallExpression).valueArguments.last().getArgumentExpression() as KtCallExpression,
+                        expression.project
+                    )
+                }.createCallDescriptor()
+            }
+            is KtArrayAccessExpression -> {
+                registerArrayAccessCall(
+                    argExpression, originalDescriptor!!
+                )
+                val indexExpression = PsiTreeUtil.findChildOfType(
+                    argExpression,
+                    KtConstantExpression::class.java
+                )!!
+                registerIndexConstant(
+                    indexExpression,
+                    indexExpression.text.toInt(),
+                    context.moduleDescriptor,
+                    context.builtIns.intType
+                )
+                registerResolvedCallForParameter(
+                    PsiTreeUtil.findChildOfType(
+                        argExpression,
+                        KtNameReferenceExpression::class.java
+                    )!!, originalDescriptorParamsArray!!
+                )
+            }
+        }
+
     }
     val callExpression = expression.selectorExpression as KtCallExpression
     val classReceiverReferenceExpression = KtNameReferenceExpression(ASTFactory.composite(KtNodeTypes.REFERENCE_EXPRESSION).apply {
