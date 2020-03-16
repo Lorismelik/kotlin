@@ -44,6 +44,7 @@ import org.jetbrains.kotlin.resolve.lazy.descriptors.LazyClassDescriptor
 import org.jetbrains.kotlin.resolve.reification.ReificationContext
 import org.jetbrains.kotlin.resolve.scopes.receivers.ClassQualifier
 import org.jetbrains.kotlin.resolve.source.KotlinSourceElement
+import org.jetbrains.kotlin.types.SimpleType
 import org.jetbrains.kotlin.types.typeUtil.isTypeParameter
 import java.lang.StringBuilder
 
@@ -59,7 +60,7 @@ class DescriptorFactoryMethodGenerator(val project: Project, val clazz: LazyClas
     var argumentReference: KtNameReferenceExpression? = null
 
     private fun createByFactory(): KtNamedFunction {
-        val typeRef = createTextTypeReferenceWithStarProjection()
+        val typeRef = createTextTypeReferenceWithStarProjection(this.clazz.defaultType)
         val fatherDescriptor = fatherDescriptorRegisteringCode()
         return KtPsiFactory(project, false).createFunction(
             "fun createTD(p: Array<kotlin.reification._D.Cla>): kotlin.reification._D.Cla { return kotlin.reification._D.Man.register({it is $typeRef}, $fatherDescriptor, p) }"
@@ -104,15 +105,6 @@ class DescriptorFactoryMethodGenerator(val project: Project, val clazz: LazyClas
                                                          }.joinToString()
                                                      }, supertype)
 
-        }
-    }
-
-    private fun createTextTypeReferenceWithStarProjection(): String {
-        val type = this.clazz.defaultType
-        return buildString {
-            append(type.constructor)
-            if (type.arguments.isNotEmpty()) type.arguments.joinTo(this, separator = ", ", prefix = "<", postfix = ">") { "*" }
-            if (type.isMarkedNullable) append("?")
         }
     }
 

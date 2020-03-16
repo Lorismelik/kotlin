@@ -10,10 +10,7 @@ import com.intellij.lang.ASTNode
 import com.intellij.openapi.project.Project
 import com.intellij.psi.util.PsiTreeUtil
 import org.jetbrains.kotlin.KtNodeTypes
-import org.jetbrains.kotlin.descriptors.ClassifierDescriptor
-import org.jetbrains.kotlin.descriptors.DeclarationDescriptor
-import org.jetbrains.kotlin.descriptors.FunctionDescriptor
-import org.jetbrains.kotlin.descriptors.ValueParameterDescriptor
+import org.jetbrains.kotlin.descriptors.*
 import org.jetbrains.kotlin.descriptors.impl.ClassConstructorDescriptorImpl
 import org.jetbrains.kotlin.incremental.components.NoLookupLocation
 import org.jetbrains.kotlin.lexer.KtTokens
@@ -41,6 +38,7 @@ import org.jetbrains.kotlin.resolve.scopes.utils.findPackage
 import org.jetbrains.kotlin.serialization.deserialization.descriptors.DeserializedSimpleFunctionDescriptor
 import org.jetbrains.kotlin.types.TypeProjection
 import org.jetbrains.kotlin.types.TypeSubstitutor
+import org.jetbrains.kotlin.types.asSimpleType
 
 
 fun createDescriptorArgument(
@@ -160,18 +158,21 @@ fun registerDescriptorCreatingCall(
     resolvedCallCopy.markCallAsCompleted()
 }
 
-fun createCodeForDescriptorFactoryMethodCall(parametersDescriptors: () -> String, descriptor: ClassifierDescriptor): String {
-    return "${descriptor.name.identifier}.createTd(arrayOf<_D.Cla>(${parametersDescriptors.invoke()}))"
-}
-
 fun createTypeParametersDescriptorsSource(args: List<TypeProjection>): String {
     return args.map {
         with(StringBuilder()) {
+            /*            if ((it.type.constructor.declarationDescriptor as ClassDescriptor).isReified) {
+                append(
+                    createCodeForDescriptorFactoryMethodCall(
+                        { createTypeParametersDescriptorsSource(it.type.arguments) },
+                        it.type.constructor.declarationDescriptor as ClassifierDescriptor
+                    )
+                )
+            } else {*/
             append("kotlin.reification._D.Man.register({it is ")
-            append(it.type.constructor)
-            if (it.type.arguments.isNotEmpty()) it.type.arguments.joinTo(this, separator = ", ", prefix = "<", postfix = ">")
-            if (it.type.isMarkedNullable) append("?")
+            append(createTextTypeReferenceWithStarProjection(it.type.asSimpleType()))
             append("}, null, arrayOf<_D.Cla>())")
+            //}
         }
     }.joinToString()
 }

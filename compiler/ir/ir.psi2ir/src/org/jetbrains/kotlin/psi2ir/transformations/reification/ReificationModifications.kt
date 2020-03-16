@@ -2,6 +2,7 @@ package org.jetbrains.kotlin.psi2ir.transformations.reification
 
 import com.intellij.openapi.project.Project
 import org.jetbrains.kotlin.descriptors.CallableDescriptor
+import org.jetbrains.kotlin.descriptors.ClassifierDescriptor
 import org.jetbrains.kotlin.descriptors.ModuleDescriptor
 import org.jetbrains.kotlin.descriptors.ValueParameterDescriptor
 import org.jetbrains.kotlin.incremental.KotlinLookupLocation
@@ -27,6 +28,7 @@ import org.jetbrains.kotlin.resolve.scopes.utils.findPackage
 import org.jetbrains.kotlin.serialization.deserialization.descriptors.DeserializedClassDescriptor
 import org.jetbrains.kotlin.serialization.deserialization.descriptors.DeserializedSimpleFunctionDescriptor
 import org.jetbrains.kotlin.types.KotlinType
+import org.jetbrains.kotlin.types.SimpleType
 import org.jetbrains.kotlin.types.TypeProjectionImpl
 import org.jetbrains.kotlin.types.Variance
 
@@ -35,6 +37,18 @@ fun createHiddenTypeReference(project: Project, typeName: String? = null): KtTyp
         "kotlin.reification._D.$typeName"
     } else "kotlin.reification._D"
     return KtPsiFactory(project, false).createTypeIfPossible(type)!!
+}
+
+fun createCodeForDescriptorFactoryMethodCall(parametersDescriptors: () -> String, descriptor: ClassifierDescriptor): String {
+    return "${descriptor.name.identifier}.createTd(arrayOf<_D.Cla>(${parametersDescriptors.invoke()}))"
+}
+
+fun createTextTypeReferenceWithStarProjection(type: SimpleType): String {
+    return buildString {
+        append(type.constructor)
+        if (type.arguments.isNotEmpty()) type.arguments.joinTo(this, separator = ", ", prefix = "<", postfix = ">") { "*" }
+        if (type.isMarkedNullable) append("?")
+    }
 }
 
 //desc
