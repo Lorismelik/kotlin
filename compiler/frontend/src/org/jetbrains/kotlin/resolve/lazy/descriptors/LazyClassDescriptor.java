@@ -100,14 +100,14 @@ public class LazyClassDescriptor extends ClassDescriptorBase implements ClassDes
     private final NotNullLazyValue<LexicalScope> scopeForInitializerResolution;
 
     private final NotNullLazyValue<Collection<ClassDescriptor>> sealedSubclasses;
-    private final boolean isReified;
+    private final NotNullLazyValue<Boolean> isReified;
 
-    private static boolean isReifiedModificationsNeeded(@NotNull KtClassLikeInfo classLikeInfo, Collection<KotlinType> supertypes) {
+    private static boolean isReifiedModificationsNeeded(@NotNull  KtClassOrObject classOrObject, Collection<KotlinType> supertypes) {
         if (supertypes.stream().anyMatch(x -> {
             ClassDescriptor supertypeDesc = (ClassDescriptor) x.getConstructor().getDeclarationDescriptor();
             return supertypeDesc.isReified();
         })) {return true;}
-        KtTypeParameterList typeParameterList = classLikeInfo.getTypeParameterList();
+        KtTypeParameterList typeParameterList = classOrObject.getTypeParameterList();
         if (typeParameterList == null) return false;
         List<KtTypeParameter> typeParameters = typeParameterList.getParameters();
         return typeParameters.stream().anyMatch(x -> x.hasModifier(KtTokens.REIFIED_KEYWORD));
@@ -125,7 +125,6 @@ public class LazyClassDescriptor extends ClassDescriptorBase implements ClassDes
               isExternal
         );
         this.c = c;
-
         classOrObject = classLikeInfo.getCorrespondingClassOrObject();
         if (classOrObject != null) {
             this.c.getTrace().record(BindingContext.CLASS, classOrObject, this);
@@ -218,6 +217,17 @@ public class LazyClassDescriptor extends ClassDescriptorBase implements ClassDes
         this.companionObjectDescriptor = storageManager.createNullableLazyValue(
                 () -> computeCompanionObjectDescriptor(getCompanionObjectIfAllowed())
         );
+        this.isReified = storageManager.createLazyValue(
+                () -> {
+                    boolean reified = !this.isCompanionObject && isReifiedModificationsNeeded(classOrObject, this.computeSupertypes());
+                    if (reified) {
+                        this.declarationProvider.addReificationModifications();
+                    }
+                    return reified;
+                });
+
+
+
         this.extraCompanionObjectDescriptors = storageManager.createMemoizedFunction(this::computeCompanionObjectDescriptor);
         this.forceResolveAllContents = storageManager.createRecursionTolerantNullableLazyValue(() -> {
             doForceResolveAllContents();
@@ -274,11 +284,6 @@ public class LazyClassDescriptor extends ClassDescriptorBase implements ClassDes
 
         // TODO: only consider classes from the same file, not the whole package fragment
         this.sealedSubclasses = storageManager.createLazyValue(() -> DescriptorUtilsKt.computeSealedSubclasses(this));
-        this.isReified = !this.isCompanionObject && isReifiedModificationsNeeded(classLikeInfo, this.computeSupertypes());
-
-        if (isReified) {
-            this.declarationProvider.addReificationModifications();
-        }
     }
 
     private static boolean isIllegalInner(@NotNull DeclarationDescriptor descriptor) {
@@ -547,7 +552,7 @@ public class LazyClassDescriptor extends ClassDescriptorBase implements ClassDes
 
     @Override
     public boolean isReified() {
-        return this.isReified;
+        return this.isReified.invoke();
     }
 
 
@@ -748,7 +753,6 @@ public class LazyClassDescriptor extends ClassDescriptorBase implements ClassDes
 
         List<KotlinType> allSupertypes =
                 c.getDescriptorResolver().resolveSupertypes(getScopeForClassHeaderResolution(), this, classOrObject, c.getTrace());
-
         return new ArrayList<>(CollectionsKt.filter(allSupertypes, VALID_SUPERTYPE));
     }
 

@@ -116,8 +116,16 @@ class DescriptorRegisterCall(
             )
             // father is not null
         } else {
+            val father = clazz.getSuperClassOrAny() as LazyClassDescriptor
+            if (father.isReified) {
+                DescriptorFactoryMethodGenerator(
+                    project,
+                    father,
+                    context
+                ).generateDescriptorFactoryMethodIfNeeded(father.companionObjectDescriptor!!)
+            }
             registerDescriptorCreatingCall(
-                clazz.getSuperClassOrAny() as LazyClassDescriptor,
+                father,
                 clazz.typeConstructor.supertypes.firstOrNull()?.arguments ?: emptyList(),
                 containingDeclaration,
                 context,
