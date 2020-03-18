@@ -17,6 +17,7 @@
 package org.jetbrains.kotlin.psi2ir.generators
 
 import org.jetbrains.kotlin.descriptors.*
+import org.jetbrains.kotlin.descriptors.impl.ClassConstructorDescriptorImpl
 import org.jetbrains.kotlin.ir.IrStatement
 import org.jetbrains.kotlin.ir.assertCast
 import org.jetbrains.kotlin.ir.builders.Scope
@@ -365,7 +366,13 @@ class StatementGenerator(
                 classDesc,
                 this.context
             ).generateDescriptorFactoryMethodIfNeeded(classDesc.companionObjectDescriptor!!)
-            val newArg = createDescriptorArgument(resolvedCall, classDesc, this.scopeOwner, this.context)
+            val newArg = createDescriptorArgument(
+                classDesc,
+                this.scopeOwner,
+                this.context,
+                (resolvedCall.resultingDescriptor as ClassConstructorDescriptorImpl).returnType.arguments,
+                expression.project
+            )
             resolvedCall = (resolvedCall as ResolvedCallImpl).createNewResolvedConstructorCall(
                 resolvedCall.candidateDescriptor as ClassConstructorDescriptor,
                 CallMaker.makeCall(

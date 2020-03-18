@@ -1,13 +1,11 @@
 package org.jetbrains.kotlin.psi2ir.transformations.reification
 
 import com.intellij.openapi.project.Project
-import org.jetbrains.kotlin.descriptors.CallableDescriptor
-import org.jetbrains.kotlin.descriptors.ClassifierDescriptor
-import org.jetbrains.kotlin.descriptors.ModuleDescriptor
-import org.jetbrains.kotlin.descriptors.ValueParameterDescriptor
+import org.jetbrains.kotlin.descriptors.*
 import org.jetbrains.kotlin.incremental.KotlinLookupLocation
 import org.jetbrains.kotlin.name.Name
 import org.jetbrains.kotlin.psi.*
+import org.jetbrains.kotlin.psi2ir.transformations.reification.synthetic.createTypeParametersDescriptorsSource
 import org.jetbrains.kotlin.resolve.BindingContext
 import org.jetbrains.kotlin.resolve.DelegatingBindingTrace
 import org.jetbrains.kotlin.resolve.calls.ValueArgumentsToParametersMapper
@@ -27,10 +25,8 @@ import org.jetbrains.kotlin.resolve.scopes.receivers.ImplicitClassReceiver
 import org.jetbrains.kotlin.resolve.scopes.utils.findPackage
 import org.jetbrains.kotlin.serialization.deserialization.descriptors.DeserializedClassDescriptor
 import org.jetbrains.kotlin.serialization.deserialization.descriptors.DeserializedSimpleFunctionDescriptor
-import org.jetbrains.kotlin.types.KotlinType
-import org.jetbrains.kotlin.types.SimpleType
-import org.jetbrains.kotlin.types.TypeProjectionImpl
-import org.jetbrains.kotlin.types.Variance
+import org.jetbrains.kotlin.types.*
+import org.jetbrains.kotlin.types.typeUtil.isTypeParameter
 
 fun createHiddenTypeReference(project: Project, typeName: String? = null): KtTypeReference {
     val type = if (typeName != null) {
@@ -39,15 +35,45 @@ fun createHiddenTypeReference(project: Project, typeName: String? = null): KtTyp
     return KtPsiFactory(project, false).createTypeIfPossible(type)!!
 }
 
-fun createCodeForDescriptorFactoryMethodCall(parametersDescriptors: () -> String, descriptor: ClassifierDescriptor): String {
-    return "${descriptor.name.identifier}.createTd(arrayOf<_D.Cla>(${parametersDescriptors.invoke()}))"
+fun createTypeParameterDescriptorSource(arg: KotlinType, callerTypeParams: List<TypeParameterDescriptor>): String {
+    return buildString {
+        append(
+            when {
+                arg.isTypeParameter() -> {
+                    val index =
+                        callerTypeParams.indexOfFirst { param -> param.defaultType.hashCode() == arg.hashCode() }
+                    "p[$index]"
+                }
+                (arg.constructor.declarationDescriptor as ClassDescriptor).isReified -> {
+                    createCodeForDescriptorFactoryMethodCall(
+                        { createTypeParametersDescriptorsSource(arg.arguments, callerTypeParams) },
+                        arg.constructor.declarationDescriptor as ClassifierDescriptor
+                    )
+                }
+                else -> createSimpleTypeRegistrationSource(arg.asSimpleType())
+            }
+        )
+    }
 }
+
+fun createCodeForDescriptorFactoryMethodCall(parametersDescriptors: () -> String, descriptor: ClassifierDescriptor): String {
+    return "${descriptor.name.identifier}.createTD(arrayOf<_D.Cla>(${parametersDescriptors.invoke()}))"
+}
+
 
 fun createTextTypeReferenceWithStarProjection(type: SimpleType): String {
     return buildString {
         append(type.constructor)
         if (type.arguments.isNotEmpty()) type.arguments.joinTo(this, separator = ", ", prefix = "<", postfix = ">") { "*" }
         if (type.isMarkedNullable) append("?")
+    }
+}
+
+fun createSimpleTypeRegistrationSource(type: SimpleType): String {
+    return buildString {
+        append("kotlin.reification._D.Man.register({it is ")
+        append(createTextTypeReferenceWithStarProjection(type))
+        append("}, null, arrayOf<kotlin.reification._D.Cla>())")
     }
 }
 

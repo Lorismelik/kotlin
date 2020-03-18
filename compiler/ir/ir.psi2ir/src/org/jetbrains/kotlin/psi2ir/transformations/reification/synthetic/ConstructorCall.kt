@@ -16,6 +16,7 @@ import org.jetbrains.kotlin.incremental.components.NoLookupLocation
 import org.jetbrains.kotlin.lexer.KtTokens
 import org.jetbrains.kotlin.name.Name
 import org.jetbrains.kotlin.psi.*
+import org.jetbrains.kotlin.psi.psiUtil.getCallNameExpression
 import org.jetbrains.kotlin.psi2ir.generators.GeneratorContext
 import org.jetbrains.kotlin.psi2ir.transformations.reification.*
 import org.jetbrains.kotlin.psi2ir.transformations.reification.synthetic.registerDescriptorCall
@@ -36,30 +37,39 @@ import org.jetbrains.kotlin.resolve.reification.ReificationContext
 import org.jetbrains.kotlin.resolve.scopes.receivers.ClassQualifier
 import org.jetbrains.kotlin.resolve.scopes.utils.findPackage
 import org.jetbrains.kotlin.serialization.deserialization.descriptors.DeserializedSimpleFunctionDescriptor
+import org.jetbrains.kotlin.types.KotlinType
 import org.jetbrains.kotlin.types.TypeProjection
 import org.jetbrains.kotlin.types.TypeSubstitutor
 import org.jetbrains.kotlin.types.asSimpleType
+import org.jetbrains.kotlin.types.model.typeConstructor
 
 
 fun createDescriptorArgument(
-    resolvedCall: ResolvedCall<*>,
     descriptor: LazyClassDescriptor,
-    scopeOwner: DeclarationDescriptor,
-    context: GeneratorContext
+    containingDeclaration: DeclarationDescriptor,
+    context: GeneratorContext,
+    args: List<TypeProjection>,
+    project: Project
 ): KtValueArgument {
-    val expression = resolvedCall.call.callElement as KtCallExpression
     val text = createCodeForDescriptorFactoryMethodCall(
-        { createTypeParametersDescriptorsSource((resolvedCall.resultingDescriptor as ClassConstructorDescriptorImpl).returnType.arguments) },
+        { createTypeParametersDescriptorsSource(args, descriptor.declaredReifiedTypeParameters) },
         descriptor
     )
-    return KtPsiFactory(expression.project, false).createArgument(text).apply {
-        registerDescriptorCreatingCall(descriptor, scopeOwner, context, this.getArgumentExpression() as KtDotQualifiedExpression)
+    return KtPsiFactory(project, false).createArgument(text).apply {
+        registerDescriptorCreatingCall(
+            descriptor,
+            args,
+            containingDeclaration,
+            context,
+            this.getArgumentExpression() as KtDotQualifiedExpression
+        )
     }
 }
 
 fun registerDescriptorCreatingCall(
     descriptor: LazyClassDescriptor,
-    scopeOwner: DeclarationDescriptor,
+    args: List<TypeProjection>,
+    containingDeclaration: DeclarationDescriptor,
     context: GeneratorContext,
     expression: KtDotQualifiedExpression,
     originalDescriptor: LazyClassDescriptor? = null,
@@ -70,22 +80,37 @@ fun registerDescriptorCreatingCall(
             PsiTreeUtil.findChildOfType(expression, KtValueArgumentList::class.java),
             KtValueArgumentList::class.java
         )
-    arguments?.arguments?.forEach {
-        when (val argExpression = it.getArgumentExpression()!!) {
+    arguments?.arguments?.forEach { ktValueArg ->
+        when (val argExpression = ktValueArg.getArgumentExpression()!!) {
             is KtDotQualifiedExpression -> {
-                DescriptorRegisterCall(
-                    expression.project,
-                    descriptor,
-                    argExpression.selectorExpression!! as KtCallExpression,
-                    scopeOwner,
-                    context
-                ) {
-                    registerArrayOfResolvedCall(
-                        descriptor,
-                        (argExpression.selectorExpression!! as KtCallExpression).valueArguments.last().getArgumentExpression() as KtCallExpression,
-                        expression.project
+                val callExpression = argExpression.selectorExpression!! as KtCallExpression
+                if (callExpression.calleeExpression!!.textMatches("createTD")) {
+                    val typeDescriptor =
+                        args.first { (it.type.constructor.declarationDescriptor as ClassDescriptor).name.identifier == argExpression.receiverExpression.text }
+                    registerDescriptorCreatingCall(
+                        typeDescriptor.type.constructor.declarationDescriptor as LazyClassDescriptor,
+                        typeDescriptor.type.arguments,
+                        containingDeclaration,
+                        context,
+                        argExpression,
+                        originalDescriptor,
+                        originalDescriptorParamsArray
                     )
-                }.createCallDescriptor()
+                } else {
+                    DescriptorRegisterCall(
+                        expression.project,
+                        descriptor,
+                        callExpression,
+                        containingDeclaration,
+                        context
+                    ) {
+                        registerArrayOfResolvedCall(
+                            descriptor,
+                            callExpression.valueArguments.last().getArgumentExpression() as KtCallExpression,
+                            expression.project
+                        )
+                    }.createCallDescriptor()
+                }
             }
             is KtArrayAccessExpression -> {
                 registerArrayAccessCall(
@@ -109,7 +134,6 @@ fun registerDescriptorCreatingCall(
                 )
             }
         }
-
     }
     val callExpression = expression.selectorExpression as KtCallExpression
     val classReceiverReferenceExpression = KtNameReferenceExpression(ASTFactory.composite(KtNodeTypes.REFERENCE_EXPRESSION).apply {
@@ -158,24 +182,12 @@ fun registerDescriptorCreatingCall(
     resolvedCallCopy.markCallAsCompleted()
 }
 
-fun createTypeParametersDescriptorsSource(args: List<TypeProjection>): String {
-    return args.map {
-        with(StringBuilder()) {
-            /*            if ((it.type.constructor.declarationDescriptor as ClassDescriptor).isReified) {
-                append(
-                    createCodeForDescriptorFactoryMethodCall(
-                        { createTypeParametersDescriptorsSource(it.type.arguments) },
-                        it.type.constructor.declarationDescriptor as ClassifierDescriptor
-                    )
-                )
-            } else {*/
-            append("kotlin.reification._D.Man.register({it is ")
-            append(createTextTypeReferenceWithStarProjection(it.type.asSimpleType()))
-            append("}, null, arrayOf<_D.Cla>())")
-            //}
-        }
-    }.joinToString()
+fun createTypeParametersDescriptorsSource(args: List<TypeProjection>, callerTypeParams: List<TypeParameterDescriptor>): String {
+    return args.joinToString {
+        createTypeParameterDescriptorSource(it.type, callerTypeParams)
+    }
 }
+
 
 fun registerArrayOfResolvedCall(descriptor: LazyClassDescriptor, callExpression: KtCallExpression, project: Project) {
     val functionDescriptor = getArrayOfDescriptor(descriptor)

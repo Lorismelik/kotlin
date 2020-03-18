@@ -39,6 +39,8 @@ import org.jetbrains.kotlin.resolve.lazy.descriptors.LazyClassDescriptor
 import org.jetbrains.kotlin.resolve.reification.ReificationContext
 import org.jetbrains.kotlin.resolve.scopes.receivers.ClassQualifier
 import org.jetbrains.kotlin.resolve.source.KotlinSourceElement
+import org.jetbrains.kotlin.types.TypeProjection
+import org.jetbrains.kotlin.types.getSupertypeRepresentative
 
 
 class DescriptorRegisterCall(
@@ -116,6 +118,7 @@ class DescriptorRegisterCall(
         } else {
             registerDescriptorCreatingCall(
                 clazz.getSuperClassOrAny() as LazyClassDescriptor,
+                clazz.typeConstructor.supertypes.firstOrNull()?.arguments ?: emptyList(),
                 containingDeclaration,
                 context,
                 fatherArgument as KtDotQualifiedExpression,

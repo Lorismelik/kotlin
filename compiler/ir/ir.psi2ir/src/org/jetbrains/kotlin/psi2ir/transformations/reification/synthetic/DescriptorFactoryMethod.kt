@@ -45,6 +45,7 @@ import org.jetbrains.kotlin.resolve.reification.ReificationContext
 import org.jetbrains.kotlin.resolve.scopes.receivers.ClassQualifier
 import org.jetbrains.kotlin.resolve.source.KotlinSourceElement
 import org.jetbrains.kotlin.types.SimpleType
+import org.jetbrains.kotlin.types.asSimpleType
 import org.jetbrains.kotlin.types.typeUtil.isTypeParameter
 import java.lang.StringBuilder
 
@@ -83,24 +84,13 @@ class DescriptorFactoryMethodGenerator(val project: Project, val clazz: LazyClas
                                                                  supertype.declaredTypeParameters[index].isReified
                                                              }
                                                          reifiedTypeInstances.map {
-                                                             val arg = it.type
                                                              with(StringBuilder()) {
-                                                                 if (arg.isTypeParameter()) {
-                                                                     val index =
-                                                                         childReifiedTypeParams.indexOfFirst { param -> param.defaultType.hashCode() == arg.hashCode() }
-                                                                     append("p[$index]")
-                                                                 } else {
-                                                                     append("kotlin.reification._D.Man.register({it is ")
-                                                                     append(arg.constructor)
-                                                                     if (arg.arguments.isNotEmpty()) arg.arguments.joinTo(
-                                                                         this,
-                                                                         separator = ", ",
-                                                                         prefix = "<",
-                                                                         postfix = ">"
+                                                                 append(
+                                                                     createTypeParameterDescriptorSource(
+                                                                         it.type,
+                                                                         childReifiedTypeParams
                                                                      )
-                                                                     if (arg.isMarkedNullable) append("?")
-                                                                     append("}, null, arrayOf<kotlin.reification._D.Cla>())")
-                                                                 }
+                                                                 )
                                                              }
                                                          }.joinToString()
                                                      }, supertype)
