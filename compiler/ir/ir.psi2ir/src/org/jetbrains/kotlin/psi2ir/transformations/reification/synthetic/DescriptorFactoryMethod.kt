@@ -88,7 +88,8 @@ class DescriptorFactoryMethodGenerator(val project: Project, val clazz: LazyClas
                                                                  append(
                                                                      createTypeParameterDescriptorSource(
                                                                          it.type,
-                                                                         childReifiedTypeParams
+                                                                         childReifiedTypeParams,
+                                                                         true
                                                                      )
                                                                  )
                                                              }

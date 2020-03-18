@@ -51,8 +51,9 @@ fun createDescriptorArgument(
     args: List<TypeProjection>,
     project: Project
 ): KtValueArgument {
+    val originalDescriptor = findOriginalDescriptor(args)
     val text = createCodeForDescriptorFactoryMethodCall(
-        { createTypeParametersDescriptorsSource(args, descriptor.declaredReifiedTypeParameters) },
+        { createTypeParametersDescriptorsSource(args, originalDescriptor?.declaredReifiedTypeParameters ?: emptyList()) },
         descriptor
     )
     return KtPsiFactory(project, false).createArgument(text).apply {
@@ -61,7 +62,8 @@ fun createDescriptorArgument(
             args,
             containingDeclaration,
             context,
-            this.getArgumentExpression() as KtDotQualifiedExpression
+            this.getArgumentExpression() as KtDotQualifiedExpression,
+            originalDescriptor
         )
     }
 }
@@ -113,6 +115,7 @@ fun registerDescriptorCreatingCall(
                 }
             }
             is KtArrayAccessExpression -> {
+
                 registerArrayAccessCall(
                     argExpression, originalDescriptor!!
                 )
@@ -126,12 +129,30 @@ fun registerDescriptorCreatingCall(
                     context.moduleDescriptor,
                     context.builtIns.intType
                 )
-                registerResolvedCallForParameter(
-                    PsiTreeUtil.findChildOfType(
-                        argExpression,
-                        KtNameReferenceExpression::class.java
-                    )!!, originalDescriptorParamsArray!!
-                )
+
+                if (originalDescriptorParamsArray == null) {
+                    registerParameterArrayCall(
+                        originalDescriptor,
+                        PsiTreeUtil.findChildOfType(
+                            argExpression,
+                            KtDotQualifiedExpression::class.java
+                        )!!
+                    )
+                    registerDescriptorCall(
+                        originalDescriptor,
+                        PsiTreeUtil.findChildOfType(
+                            argExpression,
+                            KtNameReferenceExpression::class.java
+                        )!!
+                    )
+                } else {
+                    registerResolvedCallForParameter(
+                        PsiTreeUtil.findChildOfType(
+                            argExpression,
+                            KtNameReferenceExpression::class.java
+                        )!!, originalDescriptorParamsArray
+                    )
+                }
             }
         }
     }
@@ -182,9 +203,13 @@ fun registerDescriptorCreatingCall(
     resolvedCallCopy.markCallAsCompleted()
 }
 
-fun createTypeParametersDescriptorsSource(args: List<TypeProjection>, callerTypeParams: List<TypeParameterDescriptor>): String {
+fun createTypeParametersDescriptorsSource(
+    args: List<TypeProjection>,
+    callerTypeParams: List<TypeParameterDescriptor>,
+    fromFactory: Boolean = false
+): String {
     return args.joinToString {
-        createTypeParameterDescriptorSource(it.type, callerTypeParams)
+        createTypeParameterDescriptorSource(it.type, callerTypeParams, fromFactory)
     }
 }
 

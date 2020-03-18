@@ -35,18 +35,22 @@ fun createHiddenTypeReference(project: Project, typeName: String? = null): KtTyp
     return KtPsiFactory(project, false).createTypeIfPossible(type)!!
 }
 
-fun createTypeParameterDescriptorSource(arg: KotlinType, callerTypeParams: List<TypeParameterDescriptor>): String {
+fun createTypeParameterDescriptorSource(
+    arg: KotlinType,
+    callerTypeParams: List<TypeParameterDescriptor>,
+    fromFactory: Boolean = false
+): String {
     return buildString {
         append(
             when {
                 arg.isTypeParameter() -> {
                     val index =
                         callerTypeParams.indexOfFirst { param -> param.defaultType.hashCode() == arg.hashCode() }
-                    "p[$index]"
+                    if (fromFactory) "p[$index]" else "desc.p[$index]"
                 }
                 (arg.constructor.declarationDescriptor as ClassDescriptor).isReified -> {
                     createCodeForDescriptorFactoryMethodCall(
-                        { createTypeParametersDescriptorsSource(arg.arguments, callerTypeParams) },
+                        { createTypeParametersDescriptorsSource(arg.arguments, callerTypeParams, fromFactory) },
                         arg.constructor.declarationDescriptor as ClassifierDescriptor
                     )
                 }
@@ -233,4 +237,16 @@ fun registerResolvedCallForParameter(referenceExpression: KtNameReferenceExpress
         DataFlowInfoForArgumentsImpl(DataFlowInfo.EMPTY, call)
     )
     ReificationContext.register(referenceExpression, ReificationContext.ContextTypes.RESOLVED_CALL, resolvedCall)
+}
+
+fun findOriginalDescriptor(args: List<TypeProjection>): LazyClassDescriptor? {
+    for (arg in args) {
+        if (arg.type.isTypeParameter()) {
+            return arg.type.constructor.declarationDescriptor!!.containingDeclaration as LazyClassDescriptor
+        } else {
+            val res = findOriginalDescriptor(arg.type.arguments)
+            if (res != null) return res;
+        }
+    }
+    return null;
 }
