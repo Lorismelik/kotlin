@@ -101,7 +101,7 @@ class DescriptorRegisterCall(
         registerFatherDescriptor(param)
         //3 argument KClass
         registerReflectionReference(
-            PsiTreeUtil.findChildOfType(registerCall, KtClassLiteralExpression::class.java)!!,
+            PsiTreeUtil.findChildOfType(registerCall.valueArguments[2], KtClassLiteralExpression::class.java)!!,
             typeRef
         )
         //4 argument parameters array

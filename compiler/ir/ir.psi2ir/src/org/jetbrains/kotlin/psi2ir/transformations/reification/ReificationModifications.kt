@@ -83,7 +83,7 @@ fun createSimpleTypeRegistrationSource(type: SimpleType): String {
 //desc
 fun registerDescriptorCall(clazz: LazyClassDescriptor, expression: KtNameReferenceExpression) {
     val dispatchReceiver = ImplicitClassReceiver(clazz)
-    val candidate = clazz.declaredCallableMembers.first { x -> x.name.identifier.equals("desc") }
+    val candidate = clazz.declaredCallableMembers.first { x -> x.name.identifier == "desc" }
     val call = CallMaker.makeCall(
         expression,
         null,

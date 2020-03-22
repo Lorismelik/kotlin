@@ -101,16 +101,14 @@ class DescriptorFactoryMethodGenerator(val project: Project, val clazz: LazyClas
         }
     }
 
-    fun generateDescriptorFactoryMethodIfNeeded(clazz: ClassDescriptorWithResolutionScopes) {
-        if (ReificationContext.getReificationContext<KtNamedFunction?>(
-                clazz,
-                ReificationContext.ContextTypes.DESC_FACTORY_EXPRESSION
-            ) == null
-        ) {
-            val expression = createByFactory()
-            ReificationContext.register(clazz, ReificationContext.ContextTypes.DESC_FACTORY_EXPRESSION, expression)
-            val desc = createFactoryMethodDescriptor(clazz, expression)
-            ReificationContext.register(expression, ReificationContext.ContextTypes.DESC, desc)
+    fun generateDescriptorFactoryMethodIfNeeded(clazz: ClassDescriptor): KtNamedFunction {
+        return ReificationContext.getReificationContext<KtNamedFunction?>(
+            clazz,
+            ReificationContext.ContextTypes.DESC_FACTORY_EXPRESSION
+        ) ?: createByFactory().also {
+            ReificationContext.register(clazz, ReificationContext.ContextTypes.DESC_FACTORY_EXPRESSION, it)
+            val desc = createFactoryMethodDescriptor(clazz, it)
+            ReificationContext.register(it, ReificationContext.ContextTypes.DESC, desc)
         }
     }
 

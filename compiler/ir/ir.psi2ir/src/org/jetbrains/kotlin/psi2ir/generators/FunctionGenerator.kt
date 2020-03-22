@@ -47,14 +47,15 @@ class FunctionGenerator(declarationGenerator: DeclarationGenerator) : Declaratio
     constructor(context: GeneratorContext) : this(DeclarationGenerator(context))
 
     fun generateFunctionDeclaration(
-        ktFunction: KtNamedFunction,
-        functionDescriptor: FunctionDescriptor? = null
+        ktFunction: KtNamedFunction
     ): IrSimpleFunction =
         declareSimpleFunction(
             ktFunction,
             ktFunction.receiverTypeReference,
             IrDeclarationOrigin.DEFINED,
-            functionDescriptor ?: getOrFail(BindingContext.FUNCTION, ktFunction)
+            ReificationContext.getReificationContext<SimpleFunctionDescriptorImpl?>(ktFunction, ReificationContext.ContextTypes.DESC)
+                ?: get(BindingContext.FUNCTION, ktFunction)
+                ?: throw RuntimeException("No ${BindingContext.FUNCTION} for $ktFunction")
         ) {
             ktFunction.bodyExpression?.let { generateFunctionBody(it) }
         }
@@ -64,7 +65,8 @@ class FunctionGenerator(declarationGenerator: DeclarationGenerator) : Declaratio
             ktFunction,
             null,
             IrDeclarationOrigin.LOCAL_FUNCTION_FOR_LAMBDA,
-            get(BindingContext.FUNCTION, ktFunction) ?: ReificationContext.getReificationContext<FunctionDescriptor?>(
+            get(BindingContext.FUNCTION, ktFunction)
+                ?: ReificationContext.getReificationContext<FunctionDescriptor?>(
                 ktFunction,
                 ReificationContext.ContextTypes.DESC
             )

@@ -16,6 +16,7 @@
 
 package org.jetbrains.kotlin.psi2ir.generators
 
+import com.intellij.openapi.project.Project
 import org.jetbrains.kotlin.builtins.KotlinBuiltIns
 import org.jetbrains.kotlin.descriptors.*
 import org.jetbrains.kotlin.ir.declarations.*
@@ -78,8 +79,6 @@ class ClassGenerator(
 
     fun generateClass(ktClassOrObject: KtPureClassOrObject): IrClass {
         val classDescriptor = ktClassOrObject.findClassDescriptor(this.context.bindingContext)
-        val superTypes = classDescriptor.getSuperClassOrAny()
-        val lol = classDescriptor.defaultType.constructor.supertypes
         val isReified = if (classDescriptor.isCompanionObject)
             (classDescriptor.containingDeclaration as LazyClassDescriptor).isReified else
             classDescriptor.isReified
@@ -95,9 +94,14 @@ class ClassGenerator(
             classDescriptor.typeConstructor.supertypes.mapTo(irClass.superTypes) {
                 it.toIrType()
             }
-            if (isReified && !irClass.isCompanion) {
-/*                val reificationParametricInterface = (classDescriptor as LazyClassDescriptor).resolveParametricSupertype(ktClassOrObject.containingKtFile.project)
-                irClass.superTypes.add(reificationParametricInterface.toIrType())*/
+            if (isReified && !irClass.isCompanion && !classDescriptor.getSuperClassOrAny().isReified) {
+                val reificationParametricInterface = (classDescriptor as LazyClassDescriptor).computeExternalType(
+                    createHiddenTypeReference(
+                        ktClassOrObject.psiOrParent.project,
+                        "Parametric"
+                    )
+                )
+                irClass.superTypes.add(reificationParametricInterface.toIrType())
             }
 
             irClass.thisReceiver = context.symbolTable.declareValueParameter(
@@ -425,40 +429,8 @@ class ClassGenerator(
                 declarationGenerator.generateClassMemberDeclaration(ktDeclaration, irClass)
             }
         }
-        if (isReified && irClass.isCompanion) {
-            val classDescriptor = irClass.descriptor
-            irClass.declarations.add(
-                with(
-                    DescriptorFactoryMethodGenerator(
-                        ktClassOrObject.containingKtFile.project,
-                        classDescriptor.containingDeclaration as LazyClassDescriptor,
-                        this.context
-                    )
-                ) {
-                    val declaration =
-                        ReificationContext.getReificationContext(classDescriptor, ReificationContext.ContextTypes.DESC_FACTORY_EXPRESSION)
-                            ?: with(
-                                generateFactoryMethodForReifiedDescriptor()
-                            ) {
-                                ReificationContext.register(classDescriptor, ReificationContext.ContextTypes.DESC_FACTORY_EXPRESSION, this)
-                                this
-                            }
-
-                    val factoryDesc =
-                        ReificationContext.getReificationContext<MemberDescriptor?>(declaration, ReificationContext.ContextTypes.DESC)
-                            ?: with(
-                                createFactoryMethodDescriptor(classDescriptor, declaration)
-                            ) {
-                                ReificationContext.register(classDescriptor, ReificationContext.ContextTypes.DESC, this)
-                                this
-                            }
-                    declarationGenerator.generateClassMemberDeclaration(
-                        declaration,
-                        irClass,
-                        factoryDesc
-                    )!!
-                })
-
+        if (isReified) {
+            addReificationDeclarations(irClass, ktClassOrObject.psiOrParent.project)
         }
         // generate synthetic nested classes (including companion)
         irClass.descriptor
@@ -469,6 +441,32 @@ class ClassGenerator(
             .mapTo(irClass.declarations) { declarationGenerator.generateSyntheticClassOrObject(it.syntheticDeclaration) }
 
         // synthetic functions and properties to classes must be contributed by corresponding lowering
+    }
+
+    private fun addReificationDeclarations(irClass: IrClass, project: Project) {
+        val classDescriptor = irClass.descriptor
+        irClass.declarations.add(
+            if (irClass.isCompanion) {
+                with(
+                    DescriptorFactoryMethodGenerator(
+                        project,
+                        classDescriptor.containingDeclaration as LazyClassDescriptor,
+                        this.context
+                    )
+                ) {
+                    val declaration = generateDescriptorFactoryMethodIfNeeded(classDescriptor)
+                    declarationGenerator.generateClassMemberDeclaration(
+                        declaration,
+                        irClass
+                    )!!
+                }
+            } else {
+                val declaration = DescriptorGetter(project, classDescriptor as LazyClassDescriptor, context).createDescriptorGetter()
+                declarationGenerator.generateClassMemberDeclaration(
+                    declaration,
+                    irClass
+                )!!
+            })
     }
 
     fun generateEnumEntry(ktEnumEntry: KtEnumEntry): IrEnumEntry {

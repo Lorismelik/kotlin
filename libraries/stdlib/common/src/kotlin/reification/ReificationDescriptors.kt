@@ -35,8 +35,20 @@ abstract class _D(
     }
 
     fun isInstance(o: Any?): Boolean {
+        if (this.father == null && p.isEmpty()) {
+            return pureInstanceCheck(o)
+        }
         if (o is Parametric) {
-            throw IllegalArgumentException("Not now")
+            var oDesc = o.getD()
+            if (oDesc.id == this.id) return true
+            while (oDesc.father != null) {
+                if (oDesc.father!!.id == this.id) {
+                    return true
+                } else {
+                    oDesc = oDesc.father!!
+                }
+            }
+            return false
         } else {
             return pureInstanceCheck(o)
         }

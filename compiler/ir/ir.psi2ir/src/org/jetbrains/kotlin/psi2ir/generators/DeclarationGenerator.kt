@@ -38,10 +38,10 @@ class DeclarationGenerator(override val context: GeneratorContext) : Generator {
 
     fun KotlinType.toIrType() = typeTranslator.translateType(this)
 
-    fun generateMemberDeclaration(ktDeclaration: KtDeclaration, descriptor: MemberDescriptor? = null): IrDeclaration? =
+    fun generateMemberDeclaration(ktDeclaration: KtDeclaration): IrDeclaration? =
         when (ktDeclaration) {
             is KtNamedFunction ->
-                FunctionGenerator(this).generateFunctionDeclaration(ktDeclaration, descriptor as FunctionDescriptor?)
+                FunctionGenerator(this).generateFunctionDeclaration(ktDeclaration)
             is KtProperty ->
                 PropertyGenerator(this).generatePropertyDeclaration(ktDeclaration)
             is KtClassOrObject ->
@@ -63,8 +63,7 @@ class DeclarationGenerator(override val context: GeneratorContext) : Generator {
 
     fun generateClassMemberDeclaration(
         ktDeclaration: KtDeclaration,
-        irClass: IrClass,
-        descriptor: MemberDescriptor? = null
+        irClass: IrClass
     ): IrDeclaration? =
         when (ktDeclaration) {
             is KtAnonymousInitializer ->
@@ -74,7 +73,7 @@ class DeclarationGenerator(override val context: GeneratorContext) : Generator {
             is KtEnumEntry ->
                 generateEnumEntryDeclaration(ktDeclaration)
             else ->
-                generateMemberDeclaration(ktDeclaration, descriptor)
+                generateMemberDeclaration(ktDeclaration)
         }
 
     private fun generateEnumEntryDeclaration(ktEnumEntry: KtEnumEntry): IrEnumEntry =
