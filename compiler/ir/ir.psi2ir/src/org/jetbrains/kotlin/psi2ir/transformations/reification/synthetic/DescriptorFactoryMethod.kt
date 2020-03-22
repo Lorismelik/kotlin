@@ -64,11 +64,13 @@ class DescriptorFactoryMethodGenerator(val project: Project, val clazz: LazyClas
         val typeRef = createTextTypeReferenceWithStarProjection(this.clazz.defaultType)
         val fatherDescriptor = fatherDescriptorRegisteringCode()
         return KtPsiFactory(project, false).createFunction(
-            "fun createTD(p: Array<kotlin.reification._D.Cla>): kotlin.reification._D.Cla { return kotlin.reification._D.Man.register({it is $typeRef}, $fatherDescriptor, p) }"
+            "fun createTD(p: Array<kotlin.reification._D.Cla>): kotlin.reification._D.Cla { return kotlin.reification._D.Man.register({it is $typeRef}, $fatherDescriptor, ${this.clazz.defaultType.constructor} :: class, p) }"
         ).apply {
             registerCall = PsiTreeUtil.findChildOfType(this, KtCallExpression::class.java)
             val valueArgList = PsiTreeUtil.findChildOfType(this, KtValueArgumentList::class.java)
-            argumentReference = PsiTreeUtil.findChildOfType(valueArgList!!.arguments.last(), KtNameReferenceExpression::class.java)
+            val pureCheckExpression = PsiTreeUtil.findChildOfType(valueArgList!!.arguments[0], KtIsExpression::class.java)!!
+            ReificationContext.register(pureCheckExpression, ReificationContext.ContextTypes.REIFICATION_CONTEXT, true)
+            argumentReference = PsiTreeUtil.findChildOfType(valueArgList.arguments.last(), KtNameReferenceExpression::class.java)
         }
     }
 

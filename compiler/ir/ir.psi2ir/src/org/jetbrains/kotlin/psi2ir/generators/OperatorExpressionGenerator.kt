@@ -43,6 +43,7 @@ import org.jetbrains.kotlin.psi2ir.containsNull
 import org.jetbrains.kotlin.psi2ir.findSingleFunction
 import org.jetbrains.kotlin.psi2ir.intermediate.safeCallOnDispatchReceiver
 import org.jetbrains.kotlin.psi2ir.transformations.reification.synthetic.createDescriptorInstanceCheck
+import org.jetbrains.kotlin.psi2ir.transformations.reification.synthetic.createReifiedParamTypeInstanceCheck
 import org.jetbrains.kotlin.resolve.BindingContext
 import org.jetbrains.kotlin.resolve.calls.NewCommonSuperTypeCalculator
 import org.jetbrains.kotlin.resolve.calls.model.ResolvedCall
@@ -149,6 +150,22 @@ class OperatorExpressionGenerator(statementGenerator: StatementGenerator) : Stat
                 )
                 this.genExpr()
             }
+        }
+        val againstTypeDeclarationDesc = againstType.constructor.declarationDescriptor
+        if (againstTypeDeclarationDesc is ClassDescriptor && againstTypeDeclarationDesc.isReified && ReificationContext.getReificationContext<Boolean?>(
+                expression,
+                ReificationContext.ContextTypes.REIFICATION_CONTEXT
+            ) == null
+        ) {
+            val isInstanceExpression =
+                createReifiedParamTypeInstanceCheck(expression, againstType.asSimpleType(), this.context, this.scope.scopeOwner)
+            ReificationContext.register(
+                ((isInstanceExpression as KtDotQualifiedExpression).selectorExpression as KtCallExpression)
+                    .valueArguments[0].getArgumentExpression()!!,
+                ReificationContext.ContextTypes.INSTANCE_OF_LEFT_IR,
+                leftHandSideIrExpression
+            )
+            return isInstanceExpression.genExpr()
         }
         return IrTypeOperatorCallImpl(
             expression.startOffsetSkippingComments, expression.endOffset, context.irBuiltIns.booleanType, irOperator,

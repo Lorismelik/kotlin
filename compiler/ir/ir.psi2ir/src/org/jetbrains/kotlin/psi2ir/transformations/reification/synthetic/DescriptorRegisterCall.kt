@@ -22,6 +22,7 @@ import org.jetbrains.kotlin.psi2ir.transformations.reification.createHiddenTypeR
 import org.jetbrains.kotlin.psi2ir.transformations.reification.registerResolvedCallForParameter
 import org.jetbrains.kotlin.resolve.BindingContext
 import org.jetbrains.kotlin.resolve.DelegatingBindingTrace
+import org.jetbrains.kotlin.resolve.PossiblyBareType
 import org.jetbrains.kotlin.resolve.calls.ValueArgumentsToParametersMapper
 import org.jetbrains.kotlin.resolve.calls.model.DataFlowInfoForArgumentsImpl
 import org.jetbrains.kotlin.resolve.calls.model.ResolvedCall
@@ -39,8 +40,9 @@ import org.jetbrains.kotlin.resolve.lazy.descriptors.LazyClassDescriptor
 import org.jetbrains.kotlin.resolve.reification.ReificationContext
 import org.jetbrains.kotlin.resolve.scopes.receivers.ClassQualifier
 import org.jetbrains.kotlin.resolve.source.KotlinSourceElement
-import org.jetbrains.kotlin.types.TypeProjection
-import org.jetbrains.kotlin.types.getSupertypeRepresentative
+import org.jetbrains.kotlin.types.*
+import org.jetbrains.kotlin.types.expressions.DoubleColonLHS
+import sun.java2d.pipe.SpanShapeRenderer
 
 
 class DescriptorRegisterCall(
@@ -97,8 +99,21 @@ class DescriptorRegisterCall(
         val param =
             if (containingDeclaration is SimpleFunctionDescriptor && containingDeclaration.name.identifier == "createTD") containingDeclaration.valueParameters.first() else null
         registerFatherDescriptor(param)
-        //3 argument parameters array
+        //3 argument KClass
+        registerReflectionReference(
+            PsiTreeUtil.findChildOfType(registerCall, KtClassLiteralExpression::class.java)!!,
+            typeRef
+        )
+        //4 argument parameters array
         registerArrayCall?.invoke()
+    }
+
+    private fun registerReflectionReference(expression: KtClassLiteralExpression, type: KotlinType) {
+        val ktArgument = expression.receiverExpression!!
+        val lhs = DoubleColonLHS.Type(type, PossiblyBareType.type(type))
+        ReificationContext.register(ktArgument, ReificationContext.ContextTypes.REFLECTION_REF, lhs)
+        val returnType = clazz.computeExternalType(KtPsiFactory(project, false).createType("kotlin.reflect.KClass<${type.constructor}>"))
+        ReificationContext.register(expression, ReificationContext.ContextTypes.TYPE, returnType)
     }
 
     private fun registerFatherDescriptor(valueParameter: ValueParameterDescriptor?) {

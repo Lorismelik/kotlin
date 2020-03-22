@@ -4,11 +4,14 @@
  */
 package kotlin.reification
 
+import kotlin.reflect.KClass
+
 abstract class _D(
     val p: Array<Cla>,
     var id: Int,
     val pureInstanceCheck: (Any?) -> Boolean,
-    val father: Cla?
+    val father: Cla?,
+    val type: KClass<*>
 ) {
     private val hashValue: Int
 
@@ -16,7 +19,7 @@ abstract class _D(
         hashValue = processHash()
     }
 
-    private fun processHash() = pureInstanceCheck.hashCode() * p.hashCode()
+    private fun processHash() = type.hashCode() * p.contentHashCode()
 
     override fun hashCode(): Int {
         return hashValue
@@ -26,8 +29,9 @@ abstract class _D(
         p: Array<Cla>,
         pureInstanceCheck: (Any?) -> Boolean,
         father: Cla?,
+        type: KClass<*>,
         id: Int = -1
-    ) : _D(p, id, pureInstanceCheck, father) {
+    ) : _D(p, id, pureInstanceCheck, father, type) {
     }
 
     fun isInstance(o: Any?): Boolean {
@@ -43,7 +47,7 @@ abstract class _D(
         if (other !is _D) return false
 
         if (!p.contentEquals(other.p)) return false
-        if (pureInstanceCheck != other.pureInstanceCheck) return false
+        if (type != other.type) return false
 
         return true
     }
@@ -51,13 +55,16 @@ abstract class _D(
     object Man {
         val descTable: HashMap<Int, Cla> = HashMap(101, 0.75f)
         var countId = 1
-        fun register(pureCheck: (Any?) -> Boolean, father: Cla?, p: Array<Cla> = arrayOf()): Cla {
-            val desc = Cla(p, pureCheck, father)
+        fun register(pureCheck: (Any?) -> Boolean, father: Cla?, type: KClass<*>, p: Array<Cla> = arrayOf()): Cla {
+            val desc = Cla(p, pureCheck, father, type)
             val o = descTable[desc.hashCode()]
             if (o == null) {
+                println("Single Reg!!!")
                 desc.id = countId++
                 descTable[desc.hashCode()] = desc;
                 return desc;
+            } else {
+                println("Double Reg!!!")
             }
             return o
         }

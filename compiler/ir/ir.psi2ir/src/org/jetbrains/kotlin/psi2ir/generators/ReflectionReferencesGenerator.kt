@@ -29,14 +29,19 @@ import org.jetbrains.kotlin.psi.KtElement
 import org.jetbrains.kotlin.psi.psiUtil.endOffset
 import org.jetbrains.kotlin.psi.psiUtil.startOffsetSkippingComments
 import org.jetbrains.kotlin.resolve.BindingContext
+import org.jetbrains.kotlin.resolve.reification.ReificationContext
 import org.jetbrains.kotlin.types.KotlinType
 import org.jetbrains.kotlin.types.expressions.DoubleColonLHS
+import java.lang.RuntimeException
 
 class ReflectionReferencesGenerator(statementGenerator: StatementGenerator) : StatementGeneratorExtension(statementGenerator) {
 
     fun generateClassLiteral(ktClassLiteral: KtClassLiteralExpression): IrExpression {
         val ktArgument = ktClassLiteral.receiverExpression!!
-        val lhs = getOrFail(BindingContext.DOUBLE_COLON_LHS, ktArgument)
+        val lhs = get(BindingContext.DOUBLE_COLON_LHS, ktArgument) ?: ReificationContext.getReificationContext<DoubleColonLHS.Type?>(
+            ktArgument,
+            ReificationContext.ContextTypes.REFLECTION_REF
+        ) ?: throw RuntimeException("No ${BindingContext.DOUBLE_COLON_LHS} for $ktArgument")
         val resultType = getTypeInferredByFrontendOrFail(ktClassLiteral).toIrType()
 
         return if (lhs is DoubleColonLHS.Expression && !lhs.isObjectQualifier) {

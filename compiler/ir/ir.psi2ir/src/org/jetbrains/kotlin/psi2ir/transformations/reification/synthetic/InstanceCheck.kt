@@ -5,11 +5,14 @@
 
 package org.jetbrains.kotlin.psi2ir.transformations.reification.synthetic
 
+import com.intellij.openapi.project.Project
 import com.intellij.psi.util.PsiTreeUtil
+import org.jetbrains.kotlin.descriptors.DeclarationDescriptor
 import org.jetbrains.kotlin.descriptors.ModuleDescriptor
 import org.jetbrains.kotlin.name.Name
 import org.jetbrains.kotlin.psi.*
 import org.jetbrains.kotlin.psi2ir.findSingleFunction
+import org.jetbrains.kotlin.psi2ir.generators.GeneratorContext
 import org.jetbrains.kotlin.psi2ir.transformations.reification.*
 import org.jetbrains.kotlin.psi2ir.transformations.reification.synthetic.registerDescriptorCall
 import org.jetbrains.kotlin.resolve.BindingContext
@@ -26,6 +29,7 @@ import org.jetbrains.kotlin.resolve.reification.ReificationContext
 import org.jetbrains.kotlin.resolve.scopes.receivers.ExpressionReceiver
 import org.jetbrains.kotlin.resolve.scopes.receivers.ImplicitClassReceiver
 import org.jetbrains.kotlin.types.KotlinType
+import org.jetbrains.kotlin.types.SimpleType
 
 
 fun createDescriptorInstanceCheck(
@@ -37,7 +41,19 @@ fun createDescriptorInstanceCheck(
 ): KtExpression {
     val leftSide = isExpression.leftHandSide.text
     return KtPsiFactory(isExpression.project, false).createExpression("desc.p[$descIndex].isInstance($leftSide)").apply {
-        registerIsInstanceCall(this, clazz)
+        val isInstanceCallReciever = ExpressionReceiver.create(
+            PsiTreeUtil.findChildOfType(
+                this,
+                KtArrayAccessExpression::class.java
+            )!!,
+            clazz.computeExternalType(createHiddenTypeReference(this.project, "Cla")),
+            BindingContext.EMPTY
+        )
+        val isInstanceCallExpression = PsiTreeUtil.findChildOfType(
+            this,
+            KtCallExpression::class.java
+        )!!
+        registerIsInstanceCall(isInstanceCallExpression, clazz, isInstanceCallReciever)
         registerArrayAccessCall(
             PsiTreeUtil.findChildOfType(
                 this,
@@ -70,21 +86,52 @@ fun createDescriptorInstanceCheck(
     }
 }
 
-private fun registerIsInstanceCall(expression: KtExpression, clazz: LazyClassDescriptor) {
-    val candidateDesc = clazz.computeExternalType(createHiddenTypeReference(expression.project, "Cla"))
+
+fun createReifiedParamTypeInstanceCheck(
+    isExpression: KtIsExpression,
+    againstType: SimpleType,
+    context: GeneratorContext,
+    containingDeclaration: DeclarationDescriptor
+): KtExpression {
+    val leftSide = isExpression.leftHandSide.text
+    val clazz = againstType.constructor.declarationDescriptor as LazyClassDescriptor
+    val text = buildString {
+        append(
+            createCodeForDescriptorFactoryMethodCall(
+                { createTypeParametersDescriptorsSource(againstType.arguments, emptyList()) },
+                clazz
+            )
+        )
+        append(".isInstance($leftSide)")
+    }
+    return KtPsiFactory(isExpression.project, false).createExpression(text)
+        .apply {
+            val createDescExpression = (this as KtDotQualifiedExpression).receiverExpression
+            val isInstanceCall = this.selectorExpression!! as KtCallExpression
+            val isInstanceCallReciever = ExpressionReceiver.create(
+                PsiTreeUtil.findChildOfType(
+                    this,
+                    KtDotQualifiedExpression::class.java
+                )!!,
+                clazz.computeExternalType(createHiddenTypeReference(this.project, "Cla")),
+                BindingContext.EMPTY
+            )
+            registerIsInstanceCall(isInstanceCall, clazz, isInstanceCallReciever)
+            val originalDescriptor = findOriginalDescriptor(againstType.arguments)
+            registerDescriptorCreatingCall(
+                clazz,
+                againstType.arguments,
+                containingDeclaration,
+                context,
+                createDescExpression as KtDotQualifiedExpression,
+                originalDescriptor
+            )
+        }
+}
+
+private fun registerIsInstanceCall(isInstanceCallExpression: KtCallExpression, clazz: LazyClassDescriptor, receiver: ExpressionReceiver) {
+    val candidateDesc = clazz.computeExternalType(createHiddenTypeReference(isInstanceCallExpression.project, "Cla"))
         .memberScope.findSingleFunction(Name.identifier("isInstance"))
-    val receiver = ExpressionReceiver.create(
-        PsiTreeUtil.findChildOfType(
-            expression,
-            KtArrayAccessExpression::class.java
-        )!!,
-        clazz.computeExternalType(createHiddenTypeReference(expression.project, "Cla")),
-        BindingContext.EMPTY
-    )
-    val isInstanceCallExpression = PsiTreeUtil.findChildOfType(
-        expression,
-        KtCallExpression::class.java
-    )!!
     val call = CallMaker.makeCall(
         isInstanceCallExpression,
         receiver,

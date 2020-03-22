@@ -30,6 +30,7 @@ object ReificationContext {
         RESOLVED_CALL,
         REIFICATION_CONTEXT,
         CONVERSION,
+        REFLECTION_REF,
         DESC_FACTORY_EXPRESSION,
         ARRAY_OF,
         ARRAY_GET,

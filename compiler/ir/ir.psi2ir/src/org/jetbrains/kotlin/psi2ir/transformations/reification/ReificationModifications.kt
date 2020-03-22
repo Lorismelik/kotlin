@@ -75,9 +75,8 @@ fun createTextTypeReferenceWithStarProjection(type: SimpleType): String {
 
 fun createSimpleTypeRegistrationSource(type: SimpleType): String {
     return buildString {
-        append("kotlin.reification._D.Man.register({it is ")
-        append(createTextTypeReferenceWithStarProjection(type))
-        append("}, null, arrayOf<kotlin.reification._D.Cla>())")
+        val typeRef = createTextTypeReferenceWithStarProjection(type)
+        append("kotlin.reification._D.Man.register({it is $typeRef}, null, ${type.constructor} :: class, arrayOf<kotlin.reification._D.Cla>())")
     }
 }
 
