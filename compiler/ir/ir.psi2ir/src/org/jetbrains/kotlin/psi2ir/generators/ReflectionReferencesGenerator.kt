@@ -28,10 +28,14 @@ import org.jetbrains.kotlin.psi.KtClassLiteralExpression
 import org.jetbrains.kotlin.psi.KtElement
 import org.jetbrains.kotlin.psi.psiUtil.endOffset
 import org.jetbrains.kotlin.psi.psiUtil.startOffsetSkippingComments
+import org.jetbrains.kotlin.psi2ir.transformations.reification.synthetic.GetKClassOperation
 import org.jetbrains.kotlin.resolve.BindingContext
+import org.jetbrains.kotlin.resolve.lazy.descriptors.LazyClassDescriptor
 import org.jetbrains.kotlin.resolve.reification.ReificationContext
 import org.jetbrains.kotlin.types.KotlinType
+import org.jetbrains.kotlin.types.asSimpleType
 import org.jetbrains.kotlin.types.expressions.DoubleColonLHS
+import org.jetbrains.kotlin.types.typeUtil.isTypeParameter
 import java.lang.RuntimeException
 
 class ReflectionReferencesGenerator(statementGenerator: StatementGenerator) : StatementGeneratorExtension(statementGenerator) {
@@ -42,6 +46,15 @@ class ReflectionReferencesGenerator(statementGenerator: StatementGenerator) : St
             ktArgument,
             ReificationContext.ContextTypes.REFLECTION_REF
         ) ?: throw RuntimeException("No ${BindingContext.DOUBLE_COLON_LHS} for $ktArgument")
+        val declarationDescriptor = lhs.type.constructor.declarationDescriptor?.containingDeclaration
+        if (lhs.type.isTypeParameter() && declarationDescriptor is ClassDescriptor) {
+            return GetKClassOperation(
+                ktArgument.project,
+                declarationDescriptor as LazyClassDescriptor,
+                this.context,
+                lhs.type.asSimpleType()
+            ).createKClassGetter().genExpr()
+        }
         val resultType = getTypeInferredByFrontendOrFail(ktClassLiteral).toIrType()
 
         return if (lhs is DoubleColonLHS.Expression && !lhs.isObjectQualifier) {

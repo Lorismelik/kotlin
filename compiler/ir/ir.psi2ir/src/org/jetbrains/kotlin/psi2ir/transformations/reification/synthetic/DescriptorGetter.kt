@@ -57,11 +57,7 @@ class DescriptorGetter(
             Modality.OPEN,
             Visibilities.PUBLIC
         )
-        val superClass = clazz.getSuperClassOrAny()
-        // TODO TE FIX THIS
-        val overriddenMethodDesc = /*if (superClass.isReified) {
-            superClass.unsubstitutedMemberScope.findSingleFunction(desc.name)
-        } else {*/
+        val overriddenMethodDesc =
             clazz.computeExternalType(createHiddenTypeReference(func.project, "Parametric")).memberScope.findSingleFunction(desc.name)
 
         desc.overriddenDescriptors = listOf(overriddenMethodDesc)

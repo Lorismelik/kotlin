@@ -71,12 +71,9 @@ abstract class _D(
             val desc = Cla(p, pureCheck, father, type)
             val o = descTable[desc.hashCode()]
             if (o == null) {
-                println("Single Reg!!!")
                 desc.id = countId++
                 descTable[desc.hashCode()] = desc;
                 return desc;
-            } else {
-                println("Double Reg!!!")
             }
             return o
         }
