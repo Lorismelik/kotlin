@@ -668,7 +668,7 @@ class ExpressionCodegen(
                 result.coerce(boxedLeftType, expression.argument.type).materialize()
                 val boxedRightType = typeMapper.boxType(typeOperand)
 
-                if (typeOperand.isReifiedTypeParameter) {
+                if (typeOperand.isReifiedTypeParameter && typeOperand.classifierOrNull?.descriptor?.containingDeclaration !is ClassDescriptor) {
                     val operationKind = if (expression.operator == IrTypeOperator.CAST) AS else SAFE_AS
                     putReifiedOperationMarkerIfTypeIsReifiedParameter(typeOperand, operationKind)
                     v.checkcast(boxedRightType)

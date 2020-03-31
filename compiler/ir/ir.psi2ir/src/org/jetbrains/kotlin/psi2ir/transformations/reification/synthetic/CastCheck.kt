@@ -5,9 +5,9 @@
 
 package org.jetbrains.kotlin.psi2ir.transformations.reification.synthetic
 
-import com.intellij.openapi.project.Project
 import com.intellij.psi.util.PsiTreeUtil
-import org.jetbrains.kotlin.descriptors.CallableDescriptor
+import org.jetbrains.kotlin.descriptors.ModuleDescriptor
+import org.jetbrains.kotlin.ir.expressions.IrExpression
 import org.jetbrains.kotlin.name.Name
 import org.jetbrains.kotlin.psi.*
 import org.jetbrains.kotlin.psi2ir.findSingleFunction
@@ -28,77 +28,81 @@ import org.jetbrains.kotlin.resolve.calls.util.CallMaker
 import org.jetbrains.kotlin.resolve.lazy.descriptors.LazyClassDescriptor
 import org.jetbrains.kotlin.resolve.reification.ReificationContext
 import org.jetbrains.kotlin.resolve.scopes.receivers.ExpressionReceiver
-import org.jetbrains.kotlin.resolve.scopes.receivers.ImplicitClassReceiver
-import org.jetbrains.kotlin.types.SimpleType
+import org.jetbrains.kotlin.types.KotlinType
 
-class GetKClassOperation(
-    val project: Project,
+class CastCheck(
+    val expression: KtExpression,
+    private val descIndex: Int,
     val clazz: LazyClassDescriptor,
-    val context: GeneratorContext,
-    val type: SimpleType
+    private val generatorContext: GeneratorContext
 ) {
-    fun createKClassGetter(): KtExpression {
-        val index = defineIndex()
-        val moduleDesc = context.moduleDescriptor
-        val intType = context.builtIns.intType
-        return KtPsiFactory(project, false).createExpression(
-            "desc.p[$index].type"
-        ).apply {
-            val arrayAccessExpression = PsiTreeUtil.findChildOfType(
+
+    fun createInstanceCheck(isSafe: Boolean, generatedExpression: IrExpression): KtExpression {
+        val expressionText = this.expression.text
+        val cast = if (isSafe) "safeCast" else "cast"
+        return KtPsiFactory(expression.project, false).createExpression("desc.p[$descIndex].$cast($expressionText)").apply {
+            val newExpression = ((this as KtDotQualifiedExpression).selectorExpression!!.lastChild as KtValueArgumentList).arguments.first()
+            val arrayAccessExpression = this.receiverExpression as KtArrayAccessExpression
+            val castReciever = ExpressionReceiver.create(
+                arrayAccessExpression,
+                clazz.computeExternalType(createHiddenTypeReference(this.project, "Cla")),
+                BindingContext.EMPTY
+            )
+            val isInstanceCallExpression = PsiTreeUtil.findChildOfType(
                 this,
-                KtArrayAccessExpression::class.java
+                KtCallExpression::class.java
             )!!
+            registerCastCall(isInstanceCallExpression, clazz, castReciever, cast)
             registerArrayAccessCall(
                 arrayAccessExpression, clazz
             )
             registerIndexConstant(
                 PsiTreeUtil.findChildOfType(
-                    this,
+                    arrayAccessExpression,
                     KtConstantExpression::class.java
                 )!!,
-                index,
-                moduleDesc,
-                intType
+                descIndex,
+                generatorContext.moduleDescriptor,
+                generatorContext.builtIns.intType
             )
             registerParameterArrayCall(
                 clazz,
                 PsiTreeUtil.findChildOfType(
-                    this,
+                    arrayAccessExpression,
                     KtDotQualifiedExpression::class.java
                 )!!
             )
             org.jetbrains.kotlin.psi2ir.transformations.reification.registerDescriptorCall(
                 clazz,
                 PsiTreeUtil.findChildOfType(
-                    this,
+                    arrayAccessExpression,
                     KtNameReferenceExpression::class.java
                 )!!
             )
-
-            registerReflectionTypeCall(this as KtDotQualifiedExpression)
+            ReificationContext.register(
+                newExpression.getArgumentExpression()!!, ReificationContext.ContextTypes.INSTANCE_OF_LEFT_IR, generatedExpression
+            )
         }
     }
 
-    private fun registerReflectionTypeCall(expression: KtDotQualifiedExpression) {
-        val typeRef = clazz.computeExternalType(createHiddenTypeReference(expression.project, "Cla"))
-        val candidateDesc = typeRef
-            .memberScope.getContributedDescriptors().firstOrNull { it.name.identifier == "type" }
-        val receiver = ExpressionReceiver.create(
-            expression.receiverExpression,
-            typeRef,
-            BindingContext.EMPTY
-        )
+    private fun registerCastCall(
+        castCallExpression: KtCallExpression,
+        clazz: LazyClassDescriptor,
+        receiver: ExpressionReceiver,
+        opName: String
+    ) {
+        val candidateDesc = clazz.computeExternalType(createHiddenTypeReference(castCallExpression.project, "Cla"))
+            .memberScope.findSingleFunction(Name.identifier(opName))
         val call = CallMaker.makeCall(
-            expression.receiverExpression,
+            castCallExpression,
             receiver,
-            expression.operationTokenNode,
-            expression.selectorExpression!!,
-            emptyList()
+            (castCallExpression.parent as KtDotQualifiedExpression).operationTokenNode,
+            castCallExpression.calleeExpression,
+            castCallExpression.valueArguments
         )
-
         val resolvedCall = ResolvedCallImpl(
             call,
-            candidateDesc as CallableDescriptor,
+            candidateDesc,
             receiver,
             null,
             ExplicitReceiverKind.DISPATCH_RECEIVER,
@@ -107,12 +111,9 @@ class GetKClassOperation(
             TracingStrategy.EMPTY,
             DataFlowInfoForArgumentsImpl(DataFlowInfo.EMPTY, call)
         )
+        ValueArgumentsToParametersMapper.mapValueArgumentsToParameters(call, TracingStrategy.EMPTY, resolvedCall)
         resolvedCall.markCallAsCompleted()
-        resolvedCall.setStatusToSuccess()
-        ReificationContext.register(expression.selectorExpression!!, ReificationContext.ContextTypes.RESOLVED_CALL, resolvedCall)
-    }
-
-    private fun defineIndex(): Int {
-        return clazz.declaredReifiedTypeParameters.indexOfFirst { it.defaultType.hashCode() == type.hashCode() }
+        resolvedCall.setStatusToReificationSuccess()
+        ReificationContext.register(castCallExpression, ReificationContext.ContextTypes.RESOLVED_CALL, resolvedCall)
     }
 }

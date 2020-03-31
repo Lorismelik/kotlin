@@ -34,6 +34,14 @@ abstract class _D(
     ) : _D(p, id, pureInstanceCheck, father, type) {
     }
 
+    fun safeCast(o: Any?): Any? {
+        return if (this.isInstance(o)) o else null
+    }
+
+    fun cast(o: Any?): Any {
+        return if (this.isInstance(o)) o!! else throw ClassCastException()
+    }
+
     fun isInstance(o: Any?): Boolean {
         if (this.father == null && p.isEmpty()) {
             return pureInstanceCheck(o)

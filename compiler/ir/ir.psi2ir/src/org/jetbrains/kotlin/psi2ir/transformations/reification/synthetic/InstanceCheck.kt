@@ -41,11 +41,9 @@ fun createDescriptorInstanceCheck(
 ): KtExpression {
     val leftSide = isExpression.leftHandSide.text
     return KtPsiFactory(isExpression.project, false).createExpression("desc.p[$descIndex].isInstance($leftSide)").apply {
+        val arrayAccessExpression = (this as KtDotQualifiedExpression).receiverExpression as KtArrayAccessExpression
         val isInstanceCallReciever = ExpressionReceiver.create(
-            PsiTreeUtil.findChildOfType(
-                this,
-                KtArrayAccessExpression::class.java
-            )!!,
+            arrayAccessExpression,
             clazz.computeExternalType(createHiddenTypeReference(this.project, "Cla")),
             BindingContext.EMPTY
         )
@@ -55,14 +53,11 @@ fun createDescriptorInstanceCheck(
         )!!
         registerIsInstanceCall(isInstanceCallExpression, clazz, isInstanceCallReciever)
         registerArrayAccessCall(
-            PsiTreeUtil.findChildOfType(
-                this,
-                KtArrayAccessExpression::class.java
-            )!!, clazz
+            arrayAccessExpression, clazz
         )
         registerIndexConstant(
             PsiTreeUtil.findChildOfType(
-                this,
+                arrayAccessExpression,
                 KtConstantExpression::class.java
             )!!,
             descIndex,
@@ -72,14 +67,14 @@ fun createDescriptorInstanceCheck(
         registerParameterArrayCall(
             clazz,
             PsiTreeUtil.findChildOfType(
-                this,
+                arrayAccessExpression,
                 KtDotQualifiedExpression::class.java
             )!!
         )
         registerDescriptorCall(
             clazz,
             PsiTreeUtil.findChildOfType(
-                this,
+                arrayAccessExpression,
                 KtNameReferenceExpression::class.java
             )!!
         )

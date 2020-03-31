@@ -42,6 +42,7 @@ import org.jetbrains.kotlin.psi.psiUtil.startOffsetSkippingComments
 import org.jetbrains.kotlin.psi2ir.containsNull
 import org.jetbrains.kotlin.psi2ir.findSingleFunction
 import org.jetbrains.kotlin.psi2ir.intermediate.safeCallOnDispatchReceiver
+import org.jetbrains.kotlin.psi2ir.transformations.reification.synthetic.CastCheck
 import org.jetbrains.kotlin.psi2ir.transformations.reification.synthetic.createDescriptorInstanceCheck
 import org.jetbrains.kotlin.psi2ir.transformations.reification.synthetic.createReifiedParamTypeInstanceCheck
 import org.jetbrains.kotlin.resolve.BindingContext
@@ -55,6 +56,7 @@ import org.jetbrains.kotlin.resolve.unsubstitutedUnderlyingParameter
 import org.jetbrains.kotlin.types.*
 import org.jetbrains.kotlin.types.checker.intersectTypes
 import org.jetbrains.kotlin.types.typeUtil.isPrimitiveNumberType
+import org.jetbrains.kotlin.types.typeUtil.isTypeParameter
 import org.jetbrains.kotlin.types.typeUtil.makeNotNullable
 import org.jetbrains.kotlin.types.typeUtil.makeNullable
 import java.lang.RuntimeException
@@ -116,9 +118,24 @@ class OperatorExpressionGenerator(statementGenerator: StatementGenerator) : Stat
                 throw AssertionError("Unexpected IrTypeOperator: $irOperator")
         }
 
+        var leftExpression = expression.left
+        if (rhsType.isTypeParameter()) {
+            val typeDesc = rhsType.constructor.declarationDescriptor
+            val containingDeclaration = typeDesc?.containingDeclaration
+            if (containingDeclaration is ClassDescriptor && containingDeclaration.isReified) {
+                val index = containingDeclaration.declaredReifiedTypeParameters.indexOf(
+                    typeDesc
+                )
+                leftExpression =
+                    CastCheck(leftExpression, index, containingDeclaration as LazyClassDescriptor, this.context).createInstanceCheck(
+                        irOperator == IrTypeOperator.SAFE_CAST, leftExpression.genExpr()
+                    )
+            }
+        }
+
         return IrTypeOperatorCallImpl(
             expression.startOffsetSkippingComments, expression.endOffset, resultType.toIrType(), irOperator, rhsType.toIrType(),
-            expression.left.genExpr()
+            leftExpression.genExpr()
         )
     }
 
