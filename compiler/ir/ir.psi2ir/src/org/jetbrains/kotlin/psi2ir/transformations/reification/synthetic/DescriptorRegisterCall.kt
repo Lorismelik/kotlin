@@ -95,16 +95,15 @@ class DescriptorRegisterCall(
             isExpression.leftHandSide as KtNameReferenceExpression,
             lambdaDescriptor.valueParameters[0]
         )
-        //2 argument father descriptor
-        val param =
-            if (containingDeclaration is SimpleFunctionDescriptor && containingDeclaration.name.identifier == "createTD") containingDeclaration.valueParameters.first() else null
-        registerFatherDescriptor(param)
-        //3 argument KClass
+        //val param =
+        //    if (containingDeclaration is SimpleFunctionDescriptor && containingDeclaration.name.identifier == "createTD") containingDeclaration.valueParameters.first() else null
+        //registerFatherDescriptor(param)
+        //2 argument KClass
         registerReflectionReference(
-            PsiTreeUtil.findChildOfType(registerCall.valueArguments[2], KtClassLiteralExpression::class.java)!!,
+            PsiTreeUtil.findChildOfType(registerCall.valueArguments[1], KtClassLiteralExpression::class.java)!!,
             typeRef
         )
-        //4 argument parameters array
+        //3 argument parameters array
         registerArrayCall?.invoke()
     }
 
@@ -120,7 +119,7 @@ class DescriptorRegisterCall(
         // father desc is second argument in call
         val fatherArgument = registerCall.valueArguments[1].getArgumentExpression()
         // father is null
-        if (fatherArgument is KtConstantExpression) {
+/*        if (fatherArgument is KtConstantExpression) {
             val params = CompileTimeConstant.Parameters(false, false, false, false, false, false, false)
             val nullConstant = TypedCompileTimeConstant(NullValue(), context.moduleDescriptor, params)
             ReificationContext.register(fatherArgument, ReificationContext.ContextTypes.CONSTANT, nullConstant)
@@ -130,25 +129,25 @@ class DescriptorRegisterCall(
                 context.builtIns.nullableNothingType
             )
             // father is not null
-        } else {
-            val father = clazz.getSuperClassOrAny() as LazyClassDescriptor
-            if (father.isReified) {
-                DescriptorFactoryMethodGenerator(
-                    project,
-                    father,
-                    context
-                ).generateDescriptorFactoryMethodIfNeeded(father.companionObjectDescriptor!!)
-            }
-            registerDescriptorCreatingCall(
+        } else {*/
+        val father = clazz.getSuperClassOrAny() as LazyClassDescriptor
+        if (father.isReified) {
+            DescriptorFactoryMethodGenerator(
+                project,
                 father,
-                clazz.typeConstructor.supertypes.firstOrNull()?.arguments ?: emptyList(),
-                containingDeclaration,
-                context,
-                fatherArgument as KtDotQualifiedExpression,
-                clazz,
-                valueParameter
-            )
+                context
+            ).generateDescriptorFactoryMethodIfNeeded(father.companionObjectDescriptor!!)
         }
+        registerDescriptorCreatingCall(
+            father,
+            clazz.typeConstructor.supertypes.firstOrNull()?.arguments ?: emptyList(),
+            containingDeclaration,
+            context,
+            fatherArgument as KtDotQualifiedExpression,
+            clazz,
+            valueParameter
+        )
+        // }
     }
 
     private fun registerResolvedCallDescriptionForFactoryMethod(

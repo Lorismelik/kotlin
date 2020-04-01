@@ -10,13 +10,17 @@ abstract class _D(
     val p: Array<Cla>,
     var id: Int,
     val pureInstanceCheck: (Any?) -> Boolean,
-    val father: Cla?,
     val type: KClass<*>
 ) {
     private val hashValue: Int
+    var father: Cla? = null
 
     init {
         hashValue = processHash()
+    }
+
+    fun setSupertype(supertype: _D.Cla) {
+        father = supertype
     }
 
     private fun processHash() = type.hashCode() * p.contentHashCode()
@@ -28,10 +32,9 @@ abstract class _D(
     class Cla(
         p: Array<Cla>,
         pureInstanceCheck: (Any?) -> Boolean,
-        father: Cla?,
         type: KClass<*>,
         id: Int = -1
-    ) : _D(p, id, pureInstanceCheck, father, type) {
+    ) : _D(p, id, pureInstanceCheck, type) {
     }
 
     fun safeCast(o: Any?): Any? {
@@ -75,8 +78,8 @@ abstract class _D(
     object Man {
         val descTable: HashMap<Int, Cla> = HashMap(101, 0.75f)
         var countId = 1
-        fun register(pureCheck: (Any?) -> Boolean, father: Cla?, type: KClass<*>, p: Array<Cla> = arrayOf()): Cla {
-            val desc = Cla(p, pureCheck, father, type)
+        fun register(pureCheck: (Any?) -> Boolean, type: KClass<*>, p: Array<Cla> = arrayOf()): Cla {
+            val desc = Cla(p, pureCheck, type)
             val o = descTable[desc.hashCode()]
             if (o == null) {
                 desc.id = countId++
