@@ -47,6 +47,7 @@ import org.jetbrains.kotlin.resolve.descriptorUtil.getSuperClassNotAny
 import org.jetbrains.kotlin.resolve.descriptorUtil.getSuperClassOrAny
 import org.jetbrains.kotlin.resolve.lazy.descriptors.LazyClassDescriptor
 import org.jetbrains.kotlin.resolve.reification.ReificationContext
+import org.jetbrains.kotlin.resolve.reification.ReificationResolver
 import org.jetbrains.kotlin.resolve.scopes.DescriptorKindFilter
 import org.jetbrains.kotlin.resolve.scopes.receivers.ClassQualifier
 import org.jetbrains.kotlin.resolve.scopes.receivers.ExpressionReceiver
@@ -72,14 +73,17 @@ class DescriptorFactoryMethodGenerator(val project: Project, val clazz: LazyClas
     var descriptor: LocalVariableDescriptor? = null
     var supertypeAssignment: KtBinaryExpression? = null
     var returnExpression: KtNameReferenceExpression? = null
+    var ifExpression: KtIfExpression? = null
 
     private fun createByFactory(): KtNamedFunction {
         val typeRef = createTextTypeReferenceWithStarProjection(this.clazz.defaultType)
         val fatherDescriptor = fatherDescriptorRegisteringCode()
         val newText = """fun createTD(p: Array<kotlin.reification._D.Cla>): kotlin.reification._D.Cla { 
-                |val desc = kotlin.reification._D.Man.register({it is $typeRef}, ${this.clazz.defaultType.constructor} :: class, p) 
-                |desc.father = $fatherDescriptor
-                |return desc
+                |   val typeDesc = kotlin.reification._D.Man.register({it is $typeRef}, ${this.clazz.defaultType.constructor} :: class, p) 
+                |   if (typeDesc.firstReg()) {
+                |       typeDesc.father = $fatherDescriptor
+                |   }
+                |   return typeDesc
                 |}""".trimMargin()
         val oldText = """fun createTD(p: Array<kotlin.reification._D.Cla>): kotlin.reification._D.Cla { 
                 |return kotlin.reification._D.Man.register({it is $typeRef}, ${this.clazz.defaultType.constructor} :: class, p)
@@ -89,7 +93,8 @@ class DescriptorFactoryMethodGenerator(val project: Project, val clazz: LazyClas
         ).apply {
             val statements = this.bodyBlockExpression!!.statements
             typeDescProperty = statements[0] as KtProperty
-            supertypeAssignment = statements[1] as KtBinaryExpression
+            ifExpression = statements[1] as KtIfExpression
+            supertypeAssignment = (ifExpression!!.then as KtBlockExpression).firstStatement as KtBinaryExpression
             returnExpression = PsiTreeUtil.findChildOfType(statements[2], KtNameReferenceExpression::class.java)
             registerCall = PsiTreeUtil.findChildOfType(statements[0], KtCallExpression::class.java)
             val valueArgList = PsiTreeUtil.findChildOfType(statements[0], KtValueArgumentList::class.java)
@@ -173,6 +178,8 @@ class DescriptorFactoryMethodGenerator(val project: Project, val clazz: LazyClas
                     it.valueParameters.first()
                 )
             }.createCallDescriptor()
+            registerIfCondition()
+            ReificationContext.register(ifExpression!!.then!!, ReificationContext.ContextTypes.TYPE, this.context.builtIns.unitType)
             ReificationContext.register(declaration, ReificationContext.ContextTypes.DESC, desc)
             // It's important to register function desc before register supertype because of cycle reference
             registerSupertypeSetting(it)
@@ -200,6 +207,35 @@ class DescriptorFactoryMethodGenerator(val project: Project, val clazz: LazyClas
         registerFatherCall(fatherRef, clazz, supertypeAssignment!!.project)
     }
 
+    private fun registerIfCondition() {
+        val candidateDesc = clazz.computeExternalType(createHiddenTypeReference(ifExpression!!.project, "Cla"))
+            .memberScope.findSingleFunction(Name.identifier("firstReg"))
+        val condition = ifExpression!!.condition as KtDotQualifiedExpression
+        val receiver = ExpressionReceiver.create(
+            condition.receiverExpression,
+            clazz.computeExternalType(createHiddenTypeReference(this.project, "Cla")),
+            BindingContext.EMPTY
+        )
+        val call = CallMaker.makeCall(
+            receiver,
+            condition.operationTokenNode,
+            condition.selectorExpression!! as KtCallExpression
+        )
+        val resolvedCall = ResolvedCallImpl(
+            call,
+            candidateDesc,
+            receiver,
+            null,
+            ExplicitReceiverKind.DISPATCH_RECEIVER,
+            null,
+            DelegatingBindingTrace(BindingContext.EMPTY, ""),
+            TracingStrategy.EMPTY,
+            DataFlowInfoForArgumentsImpl(DataFlowInfo.EMPTY, call)
+        )
+        resolvedCall.markCallAsCompleted()
+        ReificationContext.register(condition.selectorExpression!!, ReificationContext.ContextTypes.RESOLVED_CALL, resolvedCall)
+        registerVarRefExpression(condition.receiverExpression)
+    }
 
     private fun registerFatherDescriptor(fatherCreatingCall: KtExpression, containingDesc: SimpleFunctionDescriptorImpl) {
         // father is null

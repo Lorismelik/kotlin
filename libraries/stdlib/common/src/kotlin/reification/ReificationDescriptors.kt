@@ -32,7 +32,7 @@ abstract class _D(
         id: Int = -1
     ) : _D(p, id, pureInstanceCheck, type) {
 
-        var new = true
+        private var new = true
 
         fun firstReg(): Boolean {
             return if (!new) {

@@ -60,7 +60,9 @@ fun Generator.getExpressionTypeWithCoercionToUnit(key: KtExpression): KotlinType
         context.builtIns.unitType
 
 fun Generator.getExpressionTypeWithCoercionToUnitOrFail(key: KtExpression): KotlinType =
-    getExpressionTypeWithCoercionToUnit(key) ?: throw RuntimeException("No type for expression: ${key.text}")
+    getExpressionTypeWithCoercionToUnit(key)
+        ?: ReificationContext.getReificationContext<KotlinType?>(key, ReificationContext.ContextTypes.TYPE)
+        ?: throw RuntimeException("No type for expression: ${key.text}")
 
 fun Generator.getResolvedCall(key: KtElement): ResolvedCall<out CallableDescriptor>? =
     key.getResolvedCall(context.bindingContext)
