@@ -19,10 +19,6 @@ abstract class _D(
         hashValue = processHash()
     }
 
-    fun setSupertype(supertype: _D.Cla) {
-        father = supertype
-    }
-
     private fun processHash() = type.hashCode() * p.contentHashCode()
 
     override fun hashCode(): Int {
@@ -35,6 +31,17 @@ abstract class _D(
         type: KClass<*>,
         id: Int = -1
     ) : _D(p, id, pureInstanceCheck, type) {
+
+        var new = true
+
+        fun firstReg(): Boolean {
+            return if (!new) {
+                false
+            } else {
+                new = false
+                true
+            }
+        }
     }
 
     fun safeCast(o: Any?): Any? {

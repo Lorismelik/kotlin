@@ -18,6 +18,7 @@ package org.jetbrains.kotlin.psi2ir.generators
 
 import org.jetbrains.kotlin.descriptors.*
 import org.jetbrains.kotlin.descriptors.impl.ClassConstructorDescriptorImpl
+import org.jetbrains.kotlin.descriptors.impl.LocalVariableDescriptor
 import org.jetbrains.kotlin.ir.IrStatement
 import org.jetbrains.kotlin.ir.assertCast
 import org.jetbrains.kotlin.ir.builders.Scope
@@ -101,7 +102,11 @@ class StatementGenerator(
         )
 
     override fun visitProperty(property: KtProperty, data: Nothing?): IrStatement {
-        val variableDescriptor = getOrFail(BindingContext.VARIABLE, property)
+        val variableDescriptor =
+            get(BindingContext.VARIABLE, property) ?: ReificationContext.getReificationContext<LocalVariableDescriptor?>(
+                property,
+                ReificationContext.ContextTypes.VAR
+            ) ?: throw RuntimeException("No ${BindingContext.VARIABLE} for $property")
 
         property.delegate?.let { ktDelegate ->
             return generateLocalDelegatedProperty(
@@ -384,7 +389,7 @@ class StatementGenerator(
                 )
             )
             ValueArgumentsToParametersMapper.mapValueArgumentsToParameters(resolvedCall.call, TracingStrategy.EMPTY, resolvedCall)
-            (resolvedCall as ResolvedCallImpl).setResultingSubstitutor(TypeSubstitutor.create(resolvedCall.candidateDescriptor!!.returnType))
+            (resolvedCall as ResolvedCallImpl).setResultingSubstitutor(TypeSubstitutor.create(resolvedCall.candidateDescriptor.returnType!!))
             resolvedCall.markCallAsCompleted()
         }
 

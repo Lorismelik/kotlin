@@ -26,6 +26,7 @@ object ReificationContext {
         CONSTANT,
         CTOR_PARAM,
         DESC,
+        VAR,
         TYPE,
         RESOLVED_CALL,
         REIFICATION_CONTEXT,

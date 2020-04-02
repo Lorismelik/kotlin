@@ -24,6 +24,7 @@ import org.jetbrains.kotlin.resolve.scopes.receivers.ExpressionReceiver
 import org.jetbrains.kotlin.resolve.scopes.receivers.ImplicitClassReceiver
 import org.jetbrains.kotlin.resolve.scopes.utils.findPackage
 import org.jetbrains.kotlin.serialization.deserialization.descriptors.DeserializedClassDescriptor
+import org.jetbrains.kotlin.serialization.deserialization.descriptors.DeserializedPropertyDescriptor
 import org.jetbrains.kotlin.serialization.deserialization.descriptors.DeserializedSimpleFunctionDescriptor
 import org.jetbrains.kotlin.types.*
 import org.jetbrains.kotlin.types.typeUtil.isTypeParameter
@@ -236,6 +237,48 @@ fun registerResolvedCallForParameter(referenceExpression: KtNameReferenceExpress
         DataFlowInfoForArgumentsImpl(DataFlowInfo.EMPTY, call)
     )
     ReificationContext.register(referenceExpression, ReificationContext.ContextTypes.RESOLVED_CALL, resolvedCall)
+}
+
+fun registerFatherCall(fatherCallExpression: KtDotQualifiedExpression, clazz: LazyClassDescriptor, project: Project) {
+    val returnType = clazz.computeExternalType(createHiddenTypeReference(project, "Cla"))
+    val explicitReceiver = ExpressionReceiver.create(
+        fatherCallExpression.receiverExpression as KtNameReferenceExpression,
+        returnType,
+        BindingContext.EMPTY
+    )
+    val call = CallMaker.makeCall(
+        fatherCallExpression.receiverExpression as KtNameReferenceExpression,
+        explicitReceiver,
+        fatherCallExpression.operationTokenNode,
+        fatherCallExpression.selectorExpression,
+        emptyList(),
+        Call.CallType.DEFAULT,
+        false
+    )
+    val candidate =
+        returnType.memberScope.getContributedDescriptors(DescriptorKindFilter.ALL) { x -> x.identifier == "father" }.first() as DeserializedPropertyDescriptor
+    val fatherDescriptorResolvedCall = ResolvedCallImpl(
+        call,
+        candidate,
+        explicitReceiver,
+        null,
+        ExplicitReceiverKind.DISPATCH_RECEIVER,
+        null,
+        DelegatingBindingTrace(BindingContext.EMPTY, ""),
+        TracingStrategy.EMPTY,
+        DataFlowInfoForArgumentsImpl(DataFlowInfo.EMPTY, call)
+    )
+    ReificationContext.register(
+        fatherCallExpression.selectorExpression!!,
+        ReificationContext.ContextTypes.RESOLVED_CALL,
+        fatherDescriptorResolvedCall
+    )
+    ReificationContext.register(
+        fatherCallExpression,
+        ReificationContext.ContextTypes.TYPE,
+        candidate.returnType
+    )
+    fatherDescriptorResolvedCall.markCallAsCompleted()
 }
 
 fun findOriginalDescriptor(args: List<TypeProjection>): LazyClassDescriptor? {

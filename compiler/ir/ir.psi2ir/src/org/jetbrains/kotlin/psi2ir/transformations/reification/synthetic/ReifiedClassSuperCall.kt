@@ -8,6 +8,7 @@ package org.jetbrains.kotlin.psi2ir.transformations.reification.synthetic
 import com.intellij.psi.util.PsiTreeUtil
 import org.jetbrains.kotlin.psi.*
 import org.jetbrains.kotlin.psi2ir.transformations.reification.createHiddenTypeReference
+import org.jetbrains.kotlin.psi2ir.transformations.reification.registerFatherCall
 import org.jetbrains.kotlin.resolve.BindingContext
 import org.jetbrains.kotlin.resolve.DelegatingBindingTrace
 import org.jetbrains.kotlin.resolve.calls.model.DataFlowInfoForArgumentsImpl
@@ -36,46 +37,8 @@ fun createSuperCallArgument(
 }
 
 fun registerFatherDescriptorCallAndArgumentType(superCallArgument: KtValueArgument, descriptor: LazyClassDescriptor) {
-    val fatherDescriptorCall = PsiTreeUtil.findChildOfType(superCallArgument, KtDotQualifiedExpression::class.java)
-    val returnType = descriptor.computeExternalType(createHiddenTypeReference(superCallArgument.project, "Cla"))
-    val explicitReceiver = ExpressionReceiver.create(
-        fatherDescriptorCall!!.receiverExpression as KtNameReferenceExpression,
-        returnType,
-        BindingContext.EMPTY
-    )
-    val call = CallMaker.makeCall(
-        fatherDescriptorCall.receiverExpression as KtNameReferenceExpression,
-        explicitReceiver,
-        fatherDescriptorCall.operationTokenNode,
-        fatherDescriptorCall.selectorExpression,
-        emptyList(),
-        Call.CallType.DEFAULT,
-        false
-    )
-    val candidate =
-        returnType.memberScope.getContributedDescriptors(DescriptorKindFilter.ALL) { x -> x.identifier == "father" }.first() as DeserializedPropertyDescriptor
-    val fatherDescriptorResolvedCall = ResolvedCallImpl(
-        call,
-        candidate,
-        explicitReceiver,
-        null,
-        ExplicitReceiverKind.DISPATCH_RECEIVER,
-        null,
-        DelegatingBindingTrace(BindingContext.EMPTY, ""),
-        TracingStrategy.EMPTY,
-        DataFlowInfoForArgumentsImpl(DataFlowInfo.EMPTY, call)
-    )
-    ReificationContext.register(
-        fatherDescriptorCall.selectorExpression!!,
-        ReificationContext.ContextTypes.RESOLVED_CALL,
-        fatherDescriptorResolvedCall
-    )
-    ReificationContext.register(
-        fatherDescriptorCall,
-        ReificationContext.ContextTypes.TYPE,
-        candidate.returnType
-    )
-    fatherDescriptorResolvedCall.markCallAsCompleted()
+    val fatherDescriptorCall = PsiTreeUtil.findChildOfType(superCallArgument, KtDotQualifiedExpression::class.java)!!
+    registerFatherCall(fatherDescriptorCall, descriptor, superCallArgument.project)
 }
 
 fun registerDescriptorCall(superCallArgument: KtValueArgument, clazzDescriptor: LazyClassDescriptor) {

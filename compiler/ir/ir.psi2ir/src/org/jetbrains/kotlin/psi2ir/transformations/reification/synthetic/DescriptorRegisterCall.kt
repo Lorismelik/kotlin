@@ -115,41 +115,6 @@ class DescriptorRegisterCall(
         ReificationContext.register(expression, ReificationContext.ContextTypes.TYPE, returnType)
     }
 
-    private fun registerFatherDescriptor(valueParameter: ValueParameterDescriptor?) {
-        // father desc is second argument in call
-        val fatherArgument = registerCall.valueArguments[1].getArgumentExpression()
-        // father is null
-/*        if (fatherArgument is KtConstantExpression) {
-            val params = CompileTimeConstant.Parameters(false, false, false, false, false, false, false)
-            val nullConstant = TypedCompileTimeConstant(NullValue(), context.moduleDescriptor, params)
-            ReificationContext.register(fatherArgument, ReificationContext.ContextTypes.CONSTANT, nullConstant)
-            ReificationContext.register(
-                fatherArgument,
-                ReificationContext.ContextTypes.TYPE,
-                context.builtIns.nullableNothingType
-            )
-            // father is not null
-        } else {*/
-        val father = clazz.getSuperClassOrAny() as LazyClassDescriptor
-        if (father.isReified) {
-            DescriptorFactoryMethodGenerator(
-                project,
-                father,
-                context
-            ).generateDescriptorFactoryMethodIfNeeded(father.companionObjectDescriptor!!)
-        }
-        registerDescriptorCreatingCall(
-            father,
-            clazz.typeConstructor.supertypes.firstOrNull()?.arguments ?: emptyList(),
-            containingDeclaration,
-            context,
-            fatherArgument as KtDotQualifiedExpression,
-            clazz,
-            valueParameter
-        )
-        // }
-    }
-
     private fun registerResolvedCallDescriptionForFactoryMethod(
         callExpressionNode: ASTNode
     ): ResolvedCall<out CallableDescriptor>? {

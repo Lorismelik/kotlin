@@ -39,6 +39,7 @@ import org.jetbrains.kotlin.resolve.PropertyImportedFromObject
 import org.jetbrains.kotlin.resolve.calls.callUtil.isSafeCall
 import org.jetbrains.kotlin.resolve.calls.model.ResolvedCall
 import org.jetbrains.kotlin.resolve.calls.tasks.isDynamic
+import org.jetbrains.kotlin.resolve.reification.ReificationContext
 import org.jetbrains.kotlin.resolve.scopes.receivers.ThisClassReceiver
 import org.jetbrains.kotlin.types.KotlinType
 
@@ -175,6 +176,11 @@ class AssignmentGenerator(statementGenerator: StatementGenerator) : StatementGen
         }
 
         val resolvedCall = getResolvedCall(ktLeft)
+            ?: let {
+                if (ktLeft is KtDotQualifiedExpression) {
+                    ReificationContext.getReificationContext<ResolvedCall<*>?>(ktLeft.selectorExpression!!, ReificationContext.ContextTypes.RESOLVED_CALL)
+                } else null
+            }
             ?: return generateExpressionAssignmentReceiver(ktLeft, origin, isAssignmentStatement)
         val descriptor = resolvedCall.resultingDescriptor
 
