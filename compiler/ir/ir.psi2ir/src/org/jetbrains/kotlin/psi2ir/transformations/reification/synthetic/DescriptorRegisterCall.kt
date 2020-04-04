@@ -51,7 +51,8 @@ class DescriptorRegisterCall(
     private val registerCall: KtCallExpression,
     val containingDeclaration: DeclarationDescriptor,
     val context: GeneratorContext,
-    private val registerArrayCall: (() -> Unit)? = null
+    private val registerParamsArrayCall: (() -> Unit),
+    private val registerAnnotationsArrayCall: (() -> Unit)
 ) {
 
     fun createCallDescriptor() {
@@ -104,7 +105,10 @@ class DescriptorRegisterCall(
             typeRef
         )
         //3 argument parameters array
-        registerArrayCall?.invoke()
+        registerParamsArrayCall.invoke()
+
+        //4 argument annotations array
+        registerAnnotationsArrayCall.invoke()
     }
 
     private fun registerReflectionReference(expression: KtClassLiteralExpression, type: KotlinType) {

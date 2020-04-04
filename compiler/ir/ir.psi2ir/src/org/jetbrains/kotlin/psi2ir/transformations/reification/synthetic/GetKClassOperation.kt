@@ -12,10 +12,7 @@ import org.jetbrains.kotlin.name.Name
 import org.jetbrains.kotlin.psi.*
 import org.jetbrains.kotlin.psi2ir.findSingleFunction
 import org.jetbrains.kotlin.psi2ir.generators.GeneratorContext
-import org.jetbrains.kotlin.psi2ir.transformations.reification.createHiddenTypeReference
-import org.jetbrains.kotlin.psi2ir.transformations.reification.registerArrayAccessCall
-import org.jetbrains.kotlin.psi2ir.transformations.reification.registerIndexConstant
-import org.jetbrains.kotlin.psi2ir.transformations.reification.registerParameterArrayCall
+import org.jetbrains.kotlin.psi2ir.transformations.reification.*
 import org.jetbrains.kotlin.resolve.BindingContext
 import org.jetbrains.kotlin.resolve.DelegatingBindingTrace
 import org.jetbrains.kotlin.resolve.calls.ValueArgumentsToParametersMapper
@@ -51,12 +48,11 @@ class GetKClassOperation(
             registerArrayAccessCall(
                 arrayAccessExpression, clazz
             )
-            registerIndexConstant(
+            registerIntConstant(
                 PsiTreeUtil.findChildOfType(
                     this,
                     KtConstantExpression::class.java
                 )!!,
-                index,
                 moduleDesc,
                 intType
             )

@@ -29,6 +29,7 @@ abstract class _D(
         p: Array<Cla>,
         pureInstanceCheck: (Any?) -> Boolean,
         type: KClass<*>,
+        val annotations: Array<Int>,
         id: Int = -1
     ) : _D(p, id, pureInstanceCheck, type) {
 
@@ -85,8 +86,13 @@ abstract class _D(
     object Man {
         val descTable: HashMap<Int, Cla> = HashMap(101, 0.75f)
         var countId = 1
-        fun register(pureCheck: (Any?) -> Boolean, type: KClass<*>, p: Array<Cla> = arrayOf()): Cla {
-            val desc = Cla(p, pureCheck, type)
+        fun register(
+            pureCheck: (Any?) -> Boolean,
+            type: KClass<*>,
+            p: Array<Cla> = arrayOf(),
+            a: Array<Int> = arrayOf()
+        ): Cla {
+            val desc = Cla(p, pureCheck, type, a)
             val o = descTable[desc.hashCode()]
             if (o == null) {
                 desc.id = countId++

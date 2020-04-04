@@ -52,7 +52,7 @@ fun createTypeParameterDescriptorSource(
                 (arg.constructor.declarationDescriptor as ClassDescriptor).isReified -> {
                     createCodeForDescriptorFactoryMethodCall(
                         { createTypeParametersDescriptorsSource(arg.arguments, callerTypeParams, fromFactory) },
-                        arg.constructor.declarationDescriptor as ClassifierDescriptor
+                        arg.constructor.declarationDescriptor as ClassDescriptor
                     )
                 }
                 else -> createSimpleTypeRegistrationSource(arg.asSimpleType())
@@ -61,10 +61,22 @@ fun createTypeParameterDescriptorSource(
     }
 }
 
-fun createCodeForDescriptorFactoryMethodCall(parametersDescriptors: () -> String, descriptor: ClassifierDescriptor): String {
-    return "${descriptor.name.identifier}.createTD(arrayOf<_D.Cla>(${parametersDescriptors.invoke()}))"
+fun createCodeForDescriptorFactoryMethodCall(
+    parametersDescriptors: () -> String,
+    descriptor: ClassDescriptor
+): String {
+    return "${descriptor.name.identifier}.createTD(arrayOf<kotlin.reification._D.Cla>(${parametersDescriptors.invoke()}), arrayOf<Int>(${createCodeForAnnotations(
+        descriptor
+    )}))"
 }
 
+fun createCodeForAnnotations(
+    descriptor: ClassDescriptor
+): String {
+    return descriptor.declaredReifiedTypeParameters.map {
+        it.variance.ordinal
+    }.joinToString()
+}
 
 fun createTextTypeReferenceWithStarProjection(type: SimpleType): String {
     return buildString {
@@ -77,7 +89,7 @@ fun createTextTypeReferenceWithStarProjection(type: SimpleType): String {
 fun createSimpleTypeRegistrationSource(type: SimpleType): String {
     return buildString {
         val typeRef = createTextTypeReferenceWithStarProjection(type)
-        append("kotlin.reification._D.Man.register({it is $typeRef}, ${type.constructor} :: class, arrayOf<kotlin.reification._D.Cla>())")
+        append("kotlin.reification._D.Man.register({it is $typeRef}, ${type.constructor} :: class, arrayOf<kotlin.reification._D.Cla>(), arrayOf<Int>())")
     }
 }
 
@@ -149,13 +161,13 @@ fun registerArrayAccessCall(arrayAccessExpression: KtArrayAccessExpression, claz
     ReificationContext.register(arrayAccessExpression, ReificationContext.ContextTypes.RESOLVED_CALL, resolvedCall)
 }
 
-// []
-fun registerIndexConstant(expression: KtConstantExpression, index: Int, moduleDesc: ModuleDescriptor, builtInIntType: KotlinType) {
+// [?]
+fun registerIntConstant(expression: KtConstantExpression, moduleDesc: ModuleDescriptor, builtInIntType: KotlinType) {
     val params = CompileTimeConstant.Parameters(true, true, false, false, false, false, false)
     ReificationContext.register(
         expression,
         ReificationContext.ContextTypes.CONSTANT,
-        IntegerValueTypeConstant(index, moduleDesc, params, false)
+        IntegerValueTypeConstant(expression.text.toInt(), moduleDesc, params, false)
     )
     ReificationContext.register(
         expression,
@@ -187,7 +199,7 @@ fun registerParameterArrayCall(
         false
     )
     //TODO TE WTF!!?
-    val lol = descType.memberScope.getContributedDescriptors().filter { it.name.identifier.equals("p") }.firstOrNull()
+    val lol = descType.memberScope.getContributedDescriptors().first { it.name.identifier == "p" }
     val resolvedCall = ResolvedCallImpl(
         call,
         lol as CallableDescriptor,
@@ -205,12 +217,12 @@ fun registerParameterArrayCall(
 fun getArrayGetDescriptor(descriptor: LazyClassDescriptor, element: KtArrayAccessExpression): DeserializedSimpleFunctionDescriptor {
     return (descriptor.scopeForClassHeaderResolution.findPackage(Name.identifier("kotlin"))!!.memberScope.getContributedDescriptors(
         DescriptorKindFilter.CLASSIFIERS
-    ) { x ->
-        x.identifier.equals(
+    ).first { x ->
+        x.name.identifier.equals(
             "Array",
             true
         )
-    }.first() as DeserializedClassDescriptor)
+    } as DeserializedClassDescriptor)
         .getMemberScope(
             listOf(
                 TypeProjectionImpl(
@@ -256,7 +268,7 @@ fun registerFatherCall(fatherCallExpression: KtDotQualifiedExpression, clazz: La
         false
     )
     val candidate =
-        returnType.memberScope.getContributedDescriptors(DescriptorKindFilter.ALL) { x -> x.identifier == "father" }.first() as DeserializedPropertyDescriptor
+        returnType.memberScope.getContributedDescriptors(DescriptorKindFilter.ALL).first { x -> x.name.identifier == "father" } as DeserializedPropertyDescriptor
     val fatherDescriptorResolvedCall = ResolvedCallImpl(
         call,
         candidate,

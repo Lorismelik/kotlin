@@ -37,10 +37,7 @@ import org.jetbrains.kotlin.resolve.reification.ReificationContext
 import org.jetbrains.kotlin.resolve.scopes.receivers.ClassQualifier
 import org.jetbrains.kotlin.resolve.scopes.utils.findPackage
 import org.jetbrains.kotlin.serialization.deserialization.descriptors.DeserializedSimpleFunctionDescriptor
-import org.jetbrains.kotlin.types.KotlinType
-import org.jetbrains.kotlin.types.TypeProjection
-import org.jetbrains.kotlin.types.TypeSubstitutor
-import org.jetbrains.kotlin.types.asSimpleType
+import org.jetbrains.kotlin.types.*
 import org.jetbrains.kotlin.types.model.typeConstructor
 
 
@@ -73,19 +70,18 @@ fun registerDescriptorCreatingCall(
     args: List<TypeProjection>,
     containingDeclaration: DeclarationDescriptor,
     context: GeneratorContext,
+    //ClassName.createTD(...)
     expression: KtDotQualifiedExpression,
     originalDescriptor: LazyClassDescriptor? = null,
     originalDescriptorParamsArray: ValueParameterDescriptor? = null
 ) {
     val arguments =
-        PsiTreeUtil.findChildOfType(
-            PsiTreeUtil.findChildOfType(expression, KtValueArgumentList::class.java),
-            KtValueArgumentList::class.java
-        )
+        ((expression.selectorExpression!! as KtCallExpression).valueArguments[0].getArgumentExpression() as KtCallExpression).valueArgumentList
     arguments?.arguments?.forEach { ktValueArg ->
         when (val argExpression = ktValueArg.getArgumentExpression()!!) {
             is KtDotQualifiedExpression -> {
                 val callExpression = argExpression.selectorExpression!! as KtCallExpression
+                // Try to create desc for reified type
                 if (callExpression.calleeExpression!!.textMatches("createTD")) {
                     val typeDescriptor =
                         args.first { (it.type.constructor.declarationDescriptor as ClassDescriptor).name.identifier == argExpression.receiverExpression.text }
@@ -98,24 +94,32 @@ fun registerDescriptorCreatingCall(
                         originalDescriptor,
                         originalDescriptorParamsArray
                     )
+                    // Try to create desc for simple type
                 } else {
                     DescriptorRegisterCall(
                         expression.project,
                         descriptor,
                         callExpression,
                         containingDeclaration,
-                        context
-                    ) {
-                        registerArrayOfResolvedCall(
-                            descriptor,
-                            callExpression.valueArguments.last().getArgumentExpression() as KtCallExpression,
-                            expression.project
-                        )
-                    }.createCallDescriptor()
+                        context,
+                        {
+                            registerArrayOfResolvedCall(
+                                descriptor,
+                                callExpression.valueArguments[2].getArgumentExpression() as KtCallExpression,
+                                descriptor.computeExternalType(createHiddenTypeReference(callExpression.project, "Cla"))
+                            )
+                        },
+                        {
+                            registerArrayOfResolvedCall(
+                                descriptor,
+                                callExpression.valueArguments[3].getArgumentExpression() as KtCallExpression,
+                                context.builtIns.intType
+                            )
+                        }
+                    ).createCallDescriptor()
                 }
             }
             is KtArrayAccessExpression -> {
-
                 registerArrayAccessCall(
                     argExpression, originalDescriptor!!
                 )
@@ -123,14 +127,14 @@ fun registerDescriptorCreatingCall(
                     argExpression,
                     KtConstantExpression::class.java
                 )!!
-                registerIndexConstant(
+                registerIntConstant(
                     indexExpression,
-                    indexExpression.text.toInt(),
                     context.moduleDescriptor,
                     context.builtIns.intType
                 )
 
                 if (originalDescriptorParamsArray == null) {
+                    // pass type parameter for another param reified type (desc.p[?])
                     registerParameterArrayCall(
                         originalDescriptor,
                         PsiTreeUtil.findChildOfType(
@@ -145,6 +149,7 @@ fun registerDescriptorCreatingCall(
                             KtNameReferenceExpression::class.java
                         )!!
                     )
+                    // in createTD pass p parameter as argument for register fun
                 } else {
                     registerResolvedCallForParameter(
                         PsiTreeUtil.findChildOfType(
@@ -156,14 +161,28 @@ fun registerDescriptorCreatingCall(
             }
         }
     }
+    val annotations =
+        ((expression.selectorExpression!! as KtCallExpression).valueArguments[1].getArgumentExpression() as KtCallExpression).valueArgumentList
+    annotations?.arguments?.forEach { annotation ->
+        registerIntConstant(
+            annotation.getArgumentExpression()!! as KtConstantExpression,
+            context.moduleDescriptor,
+            context.builtIns.intType
+        )
+    }
     val callExpression = expression.selectorExpression as KtCallExpression
     val classReceiverReferenceExpression = KtNameReferenceExpression(ASTFactory.composite(KtNodeTypes.REFERENCE_EXPRESSION).apply {
         rawAddChildren(ASTFactory.leaf(KtTokens.IDENTIFIER, descriptor.name.identifier))
     })
     registerArrayOfResolvedCall(
         descriptor,
-        callExpression.valueArguments.first().getArgumentExpression() as KtCallExpression,
-        expression.project
+        callExpression.valueArguments[0].getArgumentExpression() as KtCallExpression,
+        descriptor.computeExternalType(createHiddenTypeReference(callExpression.project, "Cla"))
+    )
+    registerArrayOfResolvedCall(
+        descriptor,
+        callExpression.valueArguments[1].getArgumentExpression() as KtCallExpression,
+        context.builtIns.intType
     )
     DescriptorFactoryMethodGenerator(
         expression.project,
@@ -214,7 +233,7 @@ fun createTypeParametersDescriptorsSource(
 }
 
 
-fun registerArrayOfResolvedCall(descriptor: LazyClassDescriptor, callExpression: KtCallExpression, project: Project) {
+fun registerArrayOfResolvedCall(descriptor: LazyClassDescriptor, callExpression: KtCallExpression, substituteType: KotlinType) {
     val functionDescriptor = getArrayOfDescriptor(descriptor)
     val call = CallMaker.makeCall(
         callExpression,
@@ -235,7 +254,7 @@ fun registerArrayOfResolvedCall(descriptor: LazyClassDescriptor, callExpression:
     ValueArgumentsToParametersMapper.mapValueArgumentsToParameters(call, TracingStrategy.EMPTY, resolvedCall)
     val substitution = FunctionDescriptorUtil.createSubstitution(
         functionDescriptor,
-        listOf(descriptor.computeExternalType(createHiddenTypeReference(project, "Cla")))
+        listOf(substituteType)
     )
     resolvedCall.setResultingSubstitutor(TypeSubstitutor.create(substitution))
     ReificationContext.register(callExpression, ReificationContext.ContextTypes.RESOLVED_CALL, resolvedCall)

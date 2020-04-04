@@ -14,7 +14,7 @@ import org.jetbrains.kotlin.psi2ir.findSingleFunction
 import org.jetbrains.kotlin.psi2ir.generators.GeneratorContext
 import org.jetbrains.kotlin.psi2ir.transformations.reification.createHiddenTypeReference
 import org.jetbrains.kotlin.psi2ir.transformations.reification.registerArrayAccessCall
-import org.jetbrains.kotlin.psi2ir.transformations.reification.registerIndexConstant
+import org.jetbrains.kotlin.psi2ir.transformations.reification.registerIntConstant
 import org.jetbrains.kotlin.psi2ir.transformations.reification.registerParameterArrayCall
 import org.jetbrains.kotlin.resolve.BindingContext
 import org.jetbrains.kotlin.resolve.DelegatingBindingTrace
@@ -56,12 +56,11 @@ class CastCheck(
             registerArrayAccessCall(
                 arrayAccessExpression, clazz
             )
-            registerIndexConstant(
+            registerIntConstant(
                 PsiTreeUtil.findChildOfType(
                     arrayAccessExpression,
                     KtConstantExpression::class.java
                 )!!,
-                descIndex,
                 generatorContext.moduleDescriptor,
                 generatorContext.builtIns.intType
             )

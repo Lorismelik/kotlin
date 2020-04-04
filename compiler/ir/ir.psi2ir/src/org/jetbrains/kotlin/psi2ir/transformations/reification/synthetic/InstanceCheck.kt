@@ -55,12 +55,11 @@ fun createDescriptorInstanceCheck(
         registerArrayAccessCall(
             arrayAccessExpression, clazz
         )
-        registerIndexConstant(
+        registerIntConstant(
             PsiTreeUtil.findChildOfType(
                 arrayAccessExpression,
                 KtConstantExpression::class.java
             )!!,
-            descIndex,
             moduleDesc,
             builtInIntType
         )
