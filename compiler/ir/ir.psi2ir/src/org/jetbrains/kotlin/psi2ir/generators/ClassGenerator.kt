@@ -409,7 +409,7 @@ class ClassGenerator(
                 context.symbolTable.introduceValueParameter(it)
             }
             val params = if (irClass.descriptor.isReified) {
-                listOf(ReificationResolver.resolveConstructorParameter(ktClassOrObject as KtClassOrObject)) + ktPrimaryConstructor.valueParameters
+                ktPrimaryConstructor.valueParameters + listOf(ReificationResolver.resolveConstructorParameter(ktClassOrObject as KtClassOrObject)!!)
             } else ktPrimaryConstructor.valueParameters
             params.forEachIndexed { i, ktParameter ->
                 val irValueParameter = irPrimaryConstructor.valueParameters[i]

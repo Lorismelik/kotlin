@@ -96,9 +96,7 @@ fun registerDescriptorCreatingCall(
         )
     }
     val callExpression = expression.selectorExpression as KtCallExpression
-    val classReceiverReferenceExpression = KtNameReferenceExpression(ASTFactory.composite(KtNodeTypes.REFERENCE_EXPRESSION).apply {
-        rawAddChildren(ASTFactory.leaf(KtTokens.IDENTIFIER, descriptor.name.identifier))
-    })
+    val classReceiverReferenceExpression = expression.receiverExpression as KtNameReferenceExpression
     registerArrayOfResolvedCall(
         descriptor,
         callExpression.valueArguments[0].getArgumentExpression() as KtCallExpression,
