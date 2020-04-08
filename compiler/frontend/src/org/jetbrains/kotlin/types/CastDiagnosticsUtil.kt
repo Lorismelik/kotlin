@@ -199,7 +199,7 @@ object CastDiagnosticsUtil {
         return TypeReconstructionResult(substituted, allArgumentsInferred)
     }
 
-    private fun allParametersReified(subtype: KotlinType) = subtype.constructor.parameters.all { it.isReified }
+    private fun allParametersReified(subtype: KotlinType) = subtype.constructor.parameters.any { it.isReified }
 
     fun castIsUseless(
         expression: KtBinaryExpressionWithTypeRHS,
