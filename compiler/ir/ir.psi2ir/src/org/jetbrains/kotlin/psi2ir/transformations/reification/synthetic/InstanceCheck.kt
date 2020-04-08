@@ -92,7 +92,8 @@ fun createReifiedParamTypeInstanceCheck(
     val text = buildString {
         append(
             createCodeForDescriptorFactoryMethodCall(
-                { createTypeParametersDescriptorsSource(againstType.arguments, emptyList()) },
+                { createTypeParametersDescriptorsSource(filterArgumentsForReifiedTypeParams(againstType.arguments, clazz.declaredTypeParameters), emptyList()) },
+                { createCodeForAnnotations(filterArgumentsForReifiedTypeParams(againstType.arguments, clazz.declaredTypeParameters), clazz) },
                 clazz
             )
         )

@@ -91,24 +91,29 @@ class DescriptorFactoryMethodGenerator(val project: Project, val clazz: LazyClas
         return if (supertype == null || !supertype.isReified) "null"
         else {
             val childReifiedTypeParams = clazz.declaredReifiedTypeParameters
-            createCodeForDescriptorFactoryMethodCall({
-                                                         val reifiedTypeInstances =
-                                                             clazz.defaultType.constructor.supertypes.first()
-                                                                 .arguments.filterIndexed { index, _ ->
-                                                                 supertype.declaredTypeParameters[index].isReified
-                                                             }
-                                                         reifiedTypeInstances.map {
-                                                             with(StringBuilder()) {
-                                                                 append(
-                                                                     createTypeParameterDescriptorSource(
-                                                                         it.type,
-                                                                         childReifiedTypeParams,
-                                                                         true
-                                                                     )
-                                                                 )
-                                                             }
-                                                         }.joinToString()
-                                                     }, supertype)
+            // find arguments that link to reified params
+            val reifiedTypeInstances =
+                clazz.defaultType.constructor.supertypes.first()
+                    .arguments.filterIndexed { index, _ ->
+                    supertype.declaredTypeParameters[index].isReified
+                }
+            createCodeForDescriptorFactoryMethodCall(
+                {
+                    reifiedTypeInstances.map {
+                        with(StringBuilder()) {
+                            append(
+                                createTypeParameterDescriptorSource(
+                                    it.type,
+                                    childReifiedTypeParams,
+                                    true
+                                )
+                            )
+                        }
+                    }.joinToString()
+                },
+                { createCodeForAnnotations(reifiedTypeInstances, supertype, childReifiedTypeParams) },
+                supertype
+            )
 
         }
     }

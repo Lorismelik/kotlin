@@ -50,7 +50,13 @@ fun createDescriptorArgument(
 ): KtValueArgument {
     val originalDescriptor = findOriginalDescriptor(args)
     val text = createCodeForDescriptorFactoryMethodCall(
-        { createTypeParametersDescriptorsSource(args, originalDescriptor?.declaredReifiedTypeParameters ?: emptyList()) },
+        {
+            createTypeParametersDescriptorsSource(
+                filterArgumentsForReifiedTypeParams(args, descriptor.declaredTypeParameters),
+                originalDescriptor?.declaredReifiedTypeParameters ?: emptyList()
+            )
+        },
+        { createCodeForAnnotations(filterArgumentsForReifiedTypeParams(args, descriptor.declaredTypeParameters), descriptor) },
         descriptor
     )
     return KtPsiFactory(project, false).createArgument(text).apply {

@@ -50,9 +50,15 @@ fun createTypeParameterDescriptorSource(
                     if (fromFactory) "p[$index]" else "desc.p[$index]"
                 }
                 (arg.constructor.declarationDescriptor as ClassDescriptor).isReified -> {
+                    val classDesc = arg.constructor.declarationDescriptor as ClassDescriptor
                     createCodeForDescriptorFactoryMethodCall(
-                        { createTypeParametersDescriptorsSource(arg.arguments, callerTypeParams, fromFactory) },
-                        arg.constructor.declarationDescriptor as ClassDescriptor
+                        {
+                            createTypeParametersDescriptorsSource(filterArgumentsForReifiedTypeParams(arg.arguments, classDesc.declaredTypeParameters), callerTypeParams, fromFactory)
+                        },
+                        {
+                            createCodeForAnnotations(filterArgumentsForReifiedTypeParams(arg.arguments, classDesc.declaredTypeParameters), classDesc)
+                        },
+                        classDesc
                     )
                 }
                 else -> createSimpleTypeRegistrationSource(arg.asSimpleType())
@@ -61,18 +67,27 @@ fun createTypeParameterDescriptorSource(
     }
 }
 
+fun filterArgumentsForReifiedTypeParams(args: List<TypeProjection>, params: List<TypeParameterDescriptor>) : List<TypeProjection> {
+    return args.filterIndexed { index, _ ->
+        params[index].isReified }
+}
+
 fun createCodeForDescriptorFactoryMethodCall(
     parametersDescriptors: () -> String,
+    annotations: () -> String,
     descriptor: ClassDescriptor
 ): String {
-    return "${descriptor.name.identifier}.createTD(arrayOf<kotlin.reification._D.Cla>(${parametersDescriptors.invoke()}), arrayOf<Int>(${createCodeForAnnotations(
-        descriptor
-    )}))"
+    return "${descriptor.name.identifier}.createTD(arrayOf<kotlin.reification._D.Cla>(${parametersDescriptors.invoke()}), arrayOf<Int>(${annotations.invoke()}))"
 }
 
 fun createCodeForAnnotations(
-    descriptor: ClassDescriptor
+    args: List<TypeProjection>,
+    descriptor: ClassDescriptor,
+    callerTypeParams: List<TypeParameterDescriptor> = emptyList()
 ): String {
+    args.forEachIndexed { index, arg ->
+
+    }
     return descriptor.declaredReifiedTypeParameters.map {
         it.variance.ordinal
     }.joinToString()
