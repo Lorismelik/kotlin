@@ -293,49 +293,6 @@ fun registerFatherCall(fatherCallExpression: KtDotQualifiedExpression, clazz: La
     fatherDescriptorResolvedCall.markCallAsCompleted()
 }
 
-fun registerBoundsCall(boundsCallExpression: KtDotQualifiedExpression, clazz: LazyClassDescriptor, project: Project) {
-    val reificationLibReference = clazz.computeExternalType(createHiddenTypeReference(project))
-    val candidate =
-        reificationLibReference.memberScope.getContributedDescriptors(DescriptorKindFilter.ALL).first { x -> x.name.identifier == "bounds" } as DeserializedPropertyDescriptor
-    val returnType = candidate.returnType
-    val explicitReceiver = ExpressionReceiver.create(
-        boundsCallExpression.receiverExpression as KtNameReferenceExpression,
-        returnType,
-        BindingContext.EMPTY
-    )
-    val call = CallMaker.makeCall(
-        boundsCallExpression.receiverExpression as KtNameReferenceExpression,
-        explicitReceiver,
-        boundsCallExpression.operationTokenNode,
-        boundsCallExpression.selectorExpression,
-        emptyList(),
-        Call.CallType.DEFAULT,
-        false
-    )
-
-    val boundsDescriptorResolvedCall = ResolvedCallImpl(
-        call,
-        candidate,
-        explicitReceiver,
-        null,
-        ExplicitReceiverKind.DISPATCH_RECEIVER,
-        null,
-        DelegatingBindingTrace(BindingContext.EMPTY, ""),
-        TracingStrategy.EMPTY,
-        DataFlowInfoForArgumentsImpl(DataFlowInfo.EMPTY, call)
-    )
-    ReificationContext.register(
-        boundsCallExpression.selectorExpression!!,
-        ReificationContext.ContextTypes.RESOLVED_CALL,
-        boundsDescriptorResolvedCall
-    )
-    ReificationContext.register(
-        boundsCallExpression,
-        ReificationContext.ContextTypes.TYPE,
-        candidate.returnType
-    )
-    boundsDescriptorResolvedCall.markCallAsCompleted()
-}
 fun findOriginalDescriptor(args: List<TypeProjection>): LazyClassDescriptor? {
     for (arg in args) {
         if (arg.type.isTypeParameter()) {
