@@ -12,10 +12,7 @@ import org.jetbrains.kotlin.name.Name
 import org.jetbrains.kotlin.psi.*
 import org.jetbrains.kotlin.psi2ir.findSingleFunction
 import org.jetbrains.kotlin.psi2ir.generators.GeneratorContext
-import org.jetbrains.kotlin.psi2ir.transformations.reification.createHiddenTypeReference
-import org.jetbrains.kotlin.psi2ir.transformations.reification.registerArrayAccessCall
-import org.jetbrains.kotlin.psi2ir.transformations.reification.registerIntConstant
-import org.jetbrains.kotlin.psi2ir.transformations.reification.registerParameterArrayCall
+import org.jetbrains.kotlin.psi2ir.transformations.reification.*
 import org.jetbrains.kotlin.resolve.BindingContext
 import org.jetbrains.kotlin.resolve.DelegatingBindingTrace
 import org.jetbrains.kotlin.resolve.calls.ValueArgumentsToParametersMapper
@@ -54,7 +51,7 @@ class CastCheck(
             )!!
             registerCastCall(isInstanceCallExpression, clazz, castReciever, cast)
             registerArrayAccessCall(
-                arrayAccessExpression, clazz
+                arrayAccessExpression, clazz, "_D.Cla"
             )
             registerIntConstant(
                 PsiTreeUtil.findChildOfType(
@@ -64,14 +61,14 @@ class CastCheck(
                 generatorContext.moduleDescriptor,
                 generatorContext.builtIns.intType
             )
-            registerParameterArrayCall(
+            registerParameterOrAnnotationArrayCall(
                 clazz,
                 PsiTreeUtil.findChildOfType(
                     arrayAccessExpression,
                     KtDotQualifiedExpression::class.java
                 )!!
             )
-            org.jetbrains.kotlin.psi2ir.transformations.reification.registerDescriptorCall(
+            registerDescriptorCall(
                 clazz,
                 PsiTreeUtil.findChildOfType(
                     arrayAccessExpression,

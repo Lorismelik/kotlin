@@ -28,6 +28,7 @@ import org.jetbrains.kotlin.serialization.deserialization.descriptors.Deserializ
 import org.jetbrains.kotlin.serialization.deserialization.descriptors.DeserializedSimpleFunctionDescriptor
 import org.jetbrains.kotlin.types.*
 import org.jetbrains.kotlin.types.typeUtil.isTypeParameter
+import kotlin.reification._D
 
 fun createHiddenTypeReference(project: Project, typeName: String? = null): KtTypeReference {
     val type = if (typeName != null) {
@@ -53,10 +54,18 @@ fun createTypeParameterDescriptorSource(
                     val classDesc = arg.constructor.declarationDescriptor as ClassDescriptor
                     createCodeForDescriptorFactoryMethodCall(
                         {
-                            createTypeParametersDescriptorsSource(filterArgumentsForReifiedTypeParams(arg.arguments, classDesc.declaredTypeParameters), callerTypeParams, fromFactory)
+                            createTypeParametersDescriptorsSource(
+                                filterArgumentsForReifiedTypeParams(
+                                    arg.arguments,
+                                    classDesc.declaredTypeParameters
+                                ), callerTypeParams, fromFactory
+                            )
                         },
                         {
-                            createCodeForAnnotations(filterArgumentsForReifiedTypeParams(arg.arguments, classDesc.declaredTypeParameters), classDesc)
+                            createCodeForAnnotations(
+                                filterArgumentsForReifiedTypeParams(arg.arguments, classDesc.declaredTypeParameters),
+                                classDesc, callerTypeParams, fromFactory
+                            )
                         },
                         classDesc
                     )
@@ -67,9 +76,10 @@ fun createTypeParameterDescriptorSource(
     }
 }
 
-fun filterArgumentsForReifiedTypeParams(args: List<TypeProjection>, params: List<TypeParameterDescriptor>) : List<TypeProjection> {
+fun filterArgumentsForReifiedTypeParams(args: List<TypeProjection>, params: List<TypeParameterDescriptor>): List<TypeProjection> {
     return args.filterIndexed { index, _ ->
-        params[index].isReified }
+        params[index].isReified
+    }
 }
 
 fun createCodeForDescriptorFactoryMethodCall(
@@ -83,14 +93,28 @@ fun createCodeForDescriptorFactoryMethodCall(
 fun createCodeForAnnotations(
     args: List<TypeProjection>,
     descriptor: ClassDescriptor,
-    callerTypeParams: List<TypeParameterDescriptor> = emptyList()
+    callerTypeParams: List<TypeParameterDescriptor> = emptyList(),
+    fromFactory: Boolean = false
 ): String {
-    args.forEachIndexed { index, arg ->
-
-    }
-    return descriptor.declaredReifiedTypeParameters.map {
-        it.variance.ordinal
+    return args.mapIndexed<TypeProjection, Any> { index, arg ->
+        if (arg.type.isTypeParameter()) {
+            val annotationIndex =
+                callerTypeParams.indexOfFirst { param -> param.defaultType.hashCode() == arg.type.hashCode() }
+            return@mapIndexed if (fromFactory) "a[$annotationIndex]"  else "desc.annotations[$annotationIndex]"
+        }
+        if (arg.isStarProjection) return@mapIndexed _D.Variance.BIVARIANT.ordinal
+        return@mapIndexed if (!arg.projectionKind.equals(Variance.INVARIANT)) {
+            mapVariance(arg.projectionKind).ordinal
+        } else mapVariance(descriptor.declaredReifiedTypeParameters[index].variance).ordinal
     }.joinToString()
+}
+
+fun mapVariance(compilerVariance: Variance): _D.Variance {
+    return when (compilerVariance) {
+        Variance.OUT_VARIANCE -> _D.Variance.OUT
+        Variance.IN_VARIANCE -> _D.Variance.IN
+        Variance.INVARIANT -> _D.Variance.INVARIANT
+    }
 }
 
 fun createTextTypeReferenceWithStarProjection(type: SimpleType): String {
@@ -138,16 +162,17 @@ fun registerDescriptorCall(clazz: LazyClassDescriptor, expression: KtNameReferen
     ReificationContext.register(expression, ReificationContext.ContextTypes.RESOLVED_CALL, resolvedCall)
 }
 
-//p[]
-fun registerArrayAccessCall(arrayAccessExpression: KtArrayAccessExpression, clazz: LazyClassDescriptor) {
+//p[] or a[]
+fun registerArrayAccessCall(arrayAccessExpression: KtArrayAccessExpression, clazz: LazyClassDescriptor, typeSource: String) {
     val candidate = getArrayGetDescriptor(
         clazz,
-        arrayAccessExpression
+        arrayAccessExpression,
+        typeSource
     )
-    val type = clazz.computeExternalType(KtPsiFactory(arrayAccessExpression.project, false).createType("Array<_D.Cla>"))
+
     val receiver = ExpressionReceiver.create(
         arrayAccessExpression.arrayExpression!!,
-        type,
+        candidate.returnType!!,
         BindingContext.EMPTY
     )
 
@@ -192,9 +217,10 @@ fun registerIntConstant(expression: KtConstantExpression, moduleDesc: ModuleDesc
 }
 
 // call desc.p
-fun registerParameterArrayCall(
+fun registerParameterOrAnnotationArrayCall(
     clazz: LazyClassDescriptor,
-    expression: KtDotQualifiedExpression
+    expression: KtDotQualifiedExpression,
+    isParameterArray: Boolean = true
 ) {
     val descRef = expression.receiverExpression as KtNameReferenceExpression
     val referenceExpression = expression.selectorExpression!! as KtNameReferenceExpression
@@ -214,7 +240,8 @@ fun registerParameterArrayCall(
         false
     )
     //TODO TE WTF!!?
-    val lol = descType.memberScope.getContributedDescriptors().first { it.name.identifier == "p" }
+    val propertyName = if (isParameterArray) "p" else "annotations"
+    val lol = descType.memberScope.getContributedDescriptors().first { it.name.identifier == propertyName }
     val resolvedCall = ResolvedCallImpl(
         call,
         lol as CallableDescriptor,
@@ -229,7 +256,7 @@ fun registerParameterArrayCall(
     ReificationContext.register(referenceExpression, ReificationContext.ContextTypes.RESOLVED_CALL, resolvedCall)
 }
 
-fun getArrayGetDescriptor(descriptor: LazyClassDescriptor, element: KtArrayAccessExpression): DeserializedSimpleFunctionDescriptor {
+fun getArrayGetDescriptor(descriptor: LazyClassDescriptor, element: KtArrayAccessExpression, typeSource: String): DeserializedSimpleFunctionDescriptor {
     return (descriptor.scopeForClassHeaderResolution.findPackage(Name.identifier("kotlin"))!!.memberScope.getContributedDescriptors(
         DescriptorKindFilter.CLASSIFIERS
     ).first { x ->
@@ -242,7 +269,7 @@ fun getArrayGetDescriptor(descriptor: LazyClassDescriptor, element: KtArrayAcces
             listOf(
                 TypeProjectionImpl(
                     Variance.INVARIANT,
-                    descriptor.computeExternalType(createHiddenTypeReference(element.project, "Cla"))
+                    descriptor.computeExternalType(KtPsiFactory(element.project, false).createType(typeSource))
                 )
             )
         ).getContributedFunctions(

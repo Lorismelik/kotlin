@@ -56,7 +56,13 @@ fun createDescriptorArgument(
                 originalDescriptor?.declaredReifiedTypeParameters ?: emptyList()
             )
         },
-        { createCodeForAnnotations(filterArgumentsForReifiedTypeParams(args, descriptor.declaredTypeParameters), descriptor) },
+        {
+            createCodeForAnnotations(
+                filterArgumentsForReifiedTypeParams(args, descriptor.declaredTypeParameters),
+                descriptor,
+                originalDescriptor?.declaredReifiedTypeParameters ?: emptyList()
+            )
+        },
         descriptor
     )
     return KtPsiFactory(project, false).createArgument(text).apply {
@@ -79,7 +85,8 @@ fun registerDescriptorCreatingCall(
     //ClassName.createTD(...)
     expression: KtDotQualifiedExpression,
     originalDescriptor: LazyClassDescriptor? = null,
-    originalDescriptorParamsArray: ValueParameterDescriptor? = null
+    originalDescriptorParamsArray: ValueParameterDescriptor? = null,
+    originalDescriptorAnnotationArray: ValueParameterDescriptor? = null
 ) {
     val arguments =
         ((expression.selectorExpression!! as KtCallExpression).valueArguments[0].getArgumentExpression() as KtCallExpression).valueArgumentList
@@ -90,17 +97,12 @@ fun registerDescriptorCreatingCall(
         args.map { it.type },
         containingDeclaration,
         originalDescriptor,
-        originalDescriptorParamsArray
+        originalDescriptorParamsArray,
+        originalDescriptorAnnotationArray
     )
     val annotations =
         ((expression.selectorExpression!! as KtCallExpression).valueArguments[1].getArgumentExpression() as KtCallExpression).valueArgumentList
-    annotations?.arguments?.forEach { annotation ->
-        registerIntConstant(
-            annotation.getArgumentExpression()!! as KtConstantExpression,
-            context.moduleDescriptor,
-            context.builtIns.intType
-        )
-    }
+    registerAnnotations(annotations, context, originalDescriptor, originalDescriptorAnnotationArray)
     val callExpression = expression.selectorExpression as KtCallExpression
     val classReceiverReferenceExpression = expression.receiverExpression as KtNameReferenceExpression
     registerArrayOfResolvedCall(
@@ -158,7 +160,8 @@ fun registerParamsDescsCreating(
     args: List<KotlinType>,
     containingDeclaration: DeclarationDescriptor,
     originalDescriptor: LazyClassDescriptor? = null,
-    originalDescriptorParamsArray: ValueParameterDescriptor? = null
+    originalDescriptorParamsArray: ValueParameterDescriptor? = null,
+    originalDescriptorAnnotationArray: ValueParameterDescriptor? = null
 ) {
     arguments?.arguments?.forEach { ktValueArg ->
         when (val argExpression = ktValueArg.getArgumentExpression()!!) {
@@ -167,7 +170,7 @@ fun registerParamsDescsCreating(
                 // Try to create desc for reified type
                 if (callExpression.calleeExpression!!.textMatches("createTD")) {
                     val typeDescriptor =
-                        args.first { (it.constructor.declarationDescriptor as ClassDescriptor).name.identifier == argExpression.receiverExpression.text }
+                        args.first { (it.constructor.declarationDescriptor as? ClassDescriptor)?.name?.identifier == argExpression.receiverExpression.text }
                     registerDescriptorCreatingCall(
                         typeDescriptor.constructor.declarationDescriptor as LazyClassDescriptor,
                         typeDescriptor.arguments,
@@ -175,7 +178,8 @@ fun registerParamsDescsCreating(
                         context,
                         argExpression,
                         originalDescriptor,
-                        originalDescriptorParamsArray
+                        originalDescriptorParamsArray,
+                        originalDescriptorAnnotationArray
                     )
                     // Try to create desc for simple type
                 } else {
@@ -203,46 +207,91 @@ fun registerParamsDescsCreating(
                 }
             }
             is KtArrayAccessExpression -> {
-                registerArrayAccessCall(
-                    argExpression, originalDescriptor!!
-                )
-                val indexExpression = PsiTreeUtil.findChildOfType(
+                registerTemplateParametersOrAnnotations(
                     argExpression,
-                    KtConstantExpression::class.java
-                )!!
-                registerIntConstant(
-                    indexExpression,
-                    context.moduleDescriptor,
-                    context.builtIns.intType
+                    "_D.Cla",
+                    context,
+                    originalDescriptor!!,
+                    originalDescriptorParamsArray
                 )
-
-                if (originalDescriptorParamsArray == null) {
-                    // pass type parameter for another param reified type (desc.p[?])
-                    registerParameterArrayCall(
-                        originalDescriptor,
-                        PsiTreeUtil.findChildOfType(
-                            argExpression,
-                            KtDotQualifiedExpression::class.java
-                        )!!
-                    )
-                    registerDescriptorCall(
-                        originalDescriptor,
-                        PsiTreeUtil.findChildOfType(
-                            argExpression,
-                            KtNameReferenceExpression::class.java
-                        )!!
-                    )
-                    // in createTD pass p parameter as argument for register fun
-                } else {
-                    registerResolvedCallForParameter(
-                        PsiTreeUtil.findChildOfType(
-                            argExpression,
-                            KtNameReferenceExpression::class.java
-                        )!!, originalDescriptorParamsArray
-                    )
-                }
             }
         }
+    }
+}
+
+fun registerAnnotations(
+    annotationList: KtValueArgumentList?,
+    context: GeneratorContext,
+    originalDescriptor: LazyClassDescriptor? = null,
+    originalDescriptorAnnotationArray: ValueParameterDescriptor? = null
+) {
+    annotationList?.arguments?.forEach { annotation ->
+        val annotationExpression = annotation.getArgumentExpression()!!
+        if (annotationExpression is KtConstantExpression) {
+            registerIntConstant(
+                annotationExpression,
+                context.moduleDescriptor,
+                context.builtIns.intType
+            )
+        } else {
+            registerTemplateParametersOrAnnotations(
+                annotationExpression as KtArrayAccessExpression,
+                "kotlin.Int",
+                context,
+                originalDescriptor!!,
+                originalDescriptorAnnotationArray
+            )
+        }
+    }
+}
+
+fun registerTemplateParametersOrAnnotations(
+    argExpression: KtArrayAccessExpression,
+    arrayType: String,
+    context: GeneratorContext,
+    originalDescriptor: LazyClassDescriptor,
+    originalDescriptorArray: ValueParameterDescriptor? = null
+) {
+
+    registerArrayAccessCall(
+        argExpression, originalDescriptor, arrayType
+    )
+
+    val indexExpression = PsiTreeUtil.findChildOfType(
+        argExpression,
+        KtConstantExpression::class.java
+    )!!
+
+    registerIntConstant(
+        indexExpression,
+        context.moduleDescriptor,
+        context.builtIns.intType
+    )
+
+    if (originalDescriptorArray == null) {
+        // pass type parameter for another param reified type (desc.p[?])
+        registerParameterOrAnnotationArrayCall(
+            originalDescriptor,
+            PsiTreeUtil.findChildOfType(
+                argExpression,
+                KtDotQualifiedExpression::class.java
+            )!!
+        )
+        registerDescriptorCall(
+            originalDescriptor,
+            PsiTreeUtil.findChildOfType(
+                argExpression,
+                KtNameReferenceExpression::class.java
+            )!!
+        )
+        // in createTD pass p parameter as argument for register fun
+    } else {
+        registerResolvedCallForParameter(
+            PsiTreeUtil.findChildOfType(
+                argExpression,
+                KtNameReferenceExpression::class.java
+            )!!, originalDescriptorArray
+        )
     }
 }
 

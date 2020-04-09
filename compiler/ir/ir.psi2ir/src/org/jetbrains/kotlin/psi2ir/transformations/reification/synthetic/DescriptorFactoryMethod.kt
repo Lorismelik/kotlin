@@ -111,10 +111,9 @@ class DescriptorFactoryMethodGenerator(val project: Project, val clazz: LazyClas
                         }
                     }.joinToString()
                 },
-                { createCodeForAnnotations(reifiedTypeInstances, supertype, childReifiedTypeParams) },
+                { createCodeForAnnotations(reifiedTypeInstances, supertype, childReifiedTypeParams, true) },
                 supertype
             )
-
         }
     }
 
@@ -276,7 +275,8 @@ class DescriptorFactoryMethodGenerator(val project: Project, val clazz: LazyClas
                 context,
                 fatherCreatingCall as KtDotQualifiedExpression,
                 clazz,
-                containingDesc.valueParameters[0]
+                containingDesc.valueParameters[0],
+                containingDesc.valueParameters[1]
             )
         }
     }

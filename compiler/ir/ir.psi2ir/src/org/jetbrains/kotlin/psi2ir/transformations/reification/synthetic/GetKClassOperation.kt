@@ -46,7 +46,7 @@ class GetKClassOperation(
                 KtArrayAccessExpression::class.java
             )!!
             registerArrayAccessCall(
-                arrayAccessExpression, clazz
+                arrayAccessExpression, clazz, "_D.Cla"
             )
             registerIntConstant(
                 PsiTreeUtil.findChildOfType(
@@ -56,7 +56,7 @@ class GetKClassOperation(
                 moduleDesc,
                 intType
             )
-            registerParameterArrayCall(
+            registerParameterOrAnnotationArrayCall(
                 clazz,
                 PsiTreeUtil.findChildOfType(
                     this,

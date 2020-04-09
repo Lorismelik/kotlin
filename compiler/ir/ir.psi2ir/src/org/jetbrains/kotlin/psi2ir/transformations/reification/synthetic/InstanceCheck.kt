@@ -53,7 +53,7 @@ fun createDescriptorInstanceCheck(
         )!!
         registerIsInstanceCall(isInstanceCallExpression, clazz, isInstanceCallReciever)
         registerArrayAccessCall(
-            arrayAccessExpression, clazz
+            arrayAccessExpression, clazz, "_D.Cla"
         )
         registerIntConstant(
             PsiTreeUtil.findChildOfType(
@@ -63,7 +63,7 @@ fun createDescriptorInstanceCheck(
             moduleDesc,
             builtInIntType
         )
-        registerParameterArrayCall(
+        registerParameterOrAnnotationArrayCall(
             clazz,
             PsiTreeUtil.findChildOfType(
                 arrayAccessExpression,

@@ -106,4 +106,11 @@ abstract class _D(
     interface Parametric {
         fun getD(): Cla
     }
+
+    enum class Variance() {
+        INVARIANT,
+        OUT,
+        IN,
+        BIVARIANT
+    }
 }
