@@ -270,12 +270,14 @@ fun registerTemplateParametersOrAnnotations(
 
     if (originalDescriptorArray == null) {
         // pass type parameter for another param reified type (desc.p[?])
+        val isParameterArrayCall = arrayType == "_D.Cla"
         registerParameterOrAnnotationArrayCall(
             originalDescriptor,
             PsiTreeUtil.findChildOfType(
                 argExpression,
                 KtDotQualifiedExpression::class.java
-            )!!
+            )!!,
+            isParameterArrayCall
         )
         registerDescriptorCall(
             originalDescriptor,

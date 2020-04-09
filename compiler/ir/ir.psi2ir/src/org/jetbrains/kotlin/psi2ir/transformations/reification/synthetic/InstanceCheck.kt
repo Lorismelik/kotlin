@@ -89,11 +89,25 @@ fun createReifiedParamTypeInstanceCheck(
 ): KtExpression {
     val leftSide = isExpression.leftHandSide.text
     val clazz = againstType.constructor.declarationDescriptor as LazyClassDescriptor
+    val originalDescriptor = findOriginalDescriptor(againstType.arguments)
     val text = buildString {
         append(
             createCodeForDescriptorFactoryMethodCall(
-                { createTypeParametersDescriptorsSource(filterArgumentsForReifiedTypeParams(againstType.arguments, clazz.declaredTypeParameters), emptyList()) },
-                { createCodeForAnnotations(filterArgumentsForReifiedTypeParams(againstType.arguments, clazz.declaredTypeParameters), clazz) },
+                {
+                    createTypeParametersDescriptorsSource(
+                        filterArgumentsForReifiedTypeParams(
+                            againstType.arguments,
+                            clazz.declaredTypeParameters
+                        ), originalDescriptor?.declaredReifiedTypeParameters ?: emptyList()
+                    )
+                },
+                {
+                    createCodeForAnnotations(
+                        filterArgumentsForReifiedTypeParams(againstType.arguments, clazz.declaredTypeParameters),
+                        clazz,
+                        originalDescriptor?.declaredReifiedTypeParameters ?: emptyList()
+                    )
+                },
                 clazz
             )
         )
@@ -112,7 +126,6 @@ fun createReifiedParamTypeInstanceCheck(
                 BindingContext.EMPTY
             )
             registerIsInstanceCall(isInstanceCall, clazz, isInstanceCallReciever)
-            val originalDescriptor = findOriginalDescriptor(againstType.arguments)
             registerDescriptorCreatingCall(
                 clazz,
                 againstType.arguments,
