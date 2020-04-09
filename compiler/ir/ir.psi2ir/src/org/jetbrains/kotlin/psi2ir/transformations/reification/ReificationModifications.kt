@@ -1,6 +1,7 @@
 package org.jetbrains.kotlin.psi2ir.transformations.reification
 
 import com.intellij.openapi.project.Project
+import com.intellij.psi.util.PsiTreeUtil
 import org.jetbrains.kotlin.descriptors.*
 import org.jetbrains.kotlin.incremental.KotlinLookupLocation
 import org.jetbrains.kotlin.name.Name
@@ -100,7 +101,7 @@ fun createCodeForAnnotations(
         if (arg.type.isTypeParameter()) {
             val annotationIndex =
                 callerTypeParams.indexOfFirst { param -> param.defaultType.hashCode() == arg.type.hashCode() }
-            return@mapIndexed if (fromFactory) "a[$annotationIndex]"  else "desc.annotations[$annotationIndex]"
+            return@mapIndexed if (fromFactory) "a[$annotationIndex]" else "desc.annotations[$annotationIndex]"
         }
         if (arg.isStarProjection) return@mapIndexed _D.Variance.BIVARIANT.ordinal
         return@mapIndexed if (!arg.projectionKind.equals(Variance.INVARIANT)) {
@@ -256,7 +257,11 @@ fun registerParameterOrAnnotationArrayCall(
     ReificationContext.register(referenceExpression, ReificationContext.ContextTypes.RESOLVED_CALL, resolvedCall)
 }
 
-fun getArrayGetDescriptor(descriptor: LazyClassDescriptor, element: KtArrayAccessExpression, typeSource: String): DeserializedSimpleFunctionDescriptor {
+fun getArrayGetDescriptor(
+    descriptor: LazyClassDescriptor,
+    element: KtArrayAccessExpression,
+    typeSource: String
+): DeserializedSimpleFunctionDescriptor {
     return (descriptor.scopeForClassHeaderResolution.findPackage(Name.identifier("kotlin"))!!.memberScope.getContributedDescriptors(
         DescriptorKindFilter.CLASSIFIERS
     ).first { x ->
@@ -333,6 +338,40 @@ fun registerFatherCall(fatherCallExpression: KtDotQualifiedExpression, clazz: La
         candidate.returnType
     )
     fatherDescriptorResolvedCall.markCallAsCompleted()
+}
+
+
+fun registerAccessToTypeParameter(
+    arrayAccessExpression: KtArrayAccessExpression,
+    clazz: LazyClassDescriptor,
+    moduleDesc: ModuleDescriptor,
+    builtInIntType: KotlinType
+) {
+    registerArrayAccessCall(
+        arrayAccessExpression, clazz, "_D.Cla"
+    )
+    registerIntConstant(
+        PsiTreeUtil.findChildOfType(
+            arrayAccessExpression,
+            KtConstantExpression::class.java
+        )!!,
+        moduleDesc,
+        builtInIntType
+    )
+    registerParameterOrAnnotationArrayCall(
+        clazz,
+        PsiTreeUtil.findChildOfType(
+            arrayAccessExpression,
+            KtDotQualifiedExpression::class.java
+        )!!
+    )
+    registerDescriptorCall(
+        clazz,
+        PsiTreeUtil.findChildOfType(
+            arrayAccessExpression,
+            KtNameReferenceExpression::class.java
+        )!!
+    )
 }
 
 fun findOriginalDescriptor(args: List<TypeProjection>): LazyClassDescriptor? {

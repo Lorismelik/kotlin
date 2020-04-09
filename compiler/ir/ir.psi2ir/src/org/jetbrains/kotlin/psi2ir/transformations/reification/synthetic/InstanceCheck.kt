@@ -52,31 +52,7 @@ fun createDescriptorInstanceCheck(
             KtCallExpression::class.java
         )!!
         registerIsInstanceCall(isInstanceCallExpression, clazz, isInstanceCallReciever)
-        registerArrayAccessCall(
-            arrayAccessExpression, clazz, "_D.Cla"
-        )
-        registerIntConstant(
-            PsiTreeUtil.findChildOfType(
-                arrayAccessExpression,
-                KtConstantExpression::class.java
-            )!!,
-            moduleDesc,
-            builtInIntType
-        )
-        registerParameterOrAnnotationArrayCall(
-            clazz,
-            PsiTreeUtil.findChildOfType(
-                arrayAccessExpression,
-                KtDotQualifiedExpression::class.java
-            )!!
-        )
-        registerDescriptorCall(
-            clazz,
-            PsiTreeUtil.findChildOfType(
-                arrayAccessExpression,
-                KtNameReferenceExpression::class.java
-            )!!
-        )
+        registerAccessToTypeParameter(arrayAccessExpression, clazz, moduleDesc, builtInIntType)
     }
 }
 

@@ -50,30 +50,11 @@ class CastCheck(
                 KtCallExpression::class.java
             )!!
             registerCastCall(isInstanceCallExpression, clazz, castReciever, cast)
-            registerArrayAccessCall(
-                arrayAccessExpression, clazz, "_D.Cla"
-            )
-            registerIntConstant(
-                PsiTreeUtil.findChildOfType(
-                    arrayAccessExpression,
-                    KtConstantExpression::class.java
-                )!!,
+            registerAccessToTypeParameter(
+                arrayAccessExpression,
+                clazz,
                 generatorContext.moduleDescriptor,
                 generatorContext.builtIns.intType
-            )
-            registerParameterOrAnnotationArrayCall(
-                clazz,
-                PsiTreeUtil.findChildOfType(
-                    arrayAccessExpression,
-                    KtDotQualifiedExpression::class.java
-                )!!
-            )
-            registerDescriptorCall(
-                clazz,
-                PsiTreeUtil.findChildOfType(
-                    arrayAccessExpression,
-                    KtNameReferenceExpression::class.java
-                )!!
             )
             ReificationContext.register(
                 newExpression.getArgumentExpression()!!, ReificationContext.ContextTypes.INSTANCE_OF_LEFT_IR, generatedExpression

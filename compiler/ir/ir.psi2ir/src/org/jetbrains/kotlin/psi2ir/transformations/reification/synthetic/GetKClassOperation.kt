@@ -45,32 +45,7 @@ class GetKClassOperation(
                 this,
                 KtArrayAccessExpression::class.java
             )!!
-            registerArrayAccessCall(
-                arrayAccessExpression, clazz, "_D.Cla"
-            )
-            registerIntConstant(
-                PsiTreeUtil.findChildOfType(
-                    this,
-                    KtConstantExpression::class.java
-                )!!,
-                moduleDesc,
-                intType
-            )
-            registerParameterOrAnnotationArrayCall(
-                clazz,
-                PsiTreeUtil.findChildOfType(
-                    this,
-                    KtDotQualifiedExpression::class.java
-                )!!
-            )
-            org.jetbrains.kotlin.psi2ir.transformations.reification.registerDescriptorCall(
-                clazz,
-                PsiTreeUtil.findChildOfType(
-                    this,
-                    KtNameReferenceExpression::class.java
-                )!!
-            )
-
+            registerAccessToTypeParameter(arrayAccessExpression, clazz, moduleDesc, intType)
             registerReflectionTypeCall(this as KtDotQualifiedExpression)
         }
     }
