@@ -55,6 +55,7 @@ import org.jetbrains.kotlin.resolve.reification.ReificationContext
 import org.jetbrains.kotlin.resolve.unsubstitutedUnderlyingParameter
 import org.jetbrains.kotlin.types.*
 import org.jetbrains.kotlin.types.checker.intersectTypes
+import org.jetbrains.kotlin.types.model.typeConstructor
 import org.jetbrains.kotlin.types.typeUtil.isPrimitiveNumberType
 import org.jetbrains.kotlin.types.typeUtil.isTypeParameter
 import org.jetbrains.kotlin.types.typeUtil.makeNotNullable
@@ -127,10 +128,21 @@ class OperatorExpressionGenerator(statementGenerator: StatementGenerator) : Stat
                     typeDesc
                 )
                 leftExpression =
-                    CastCheck(leftExpression, index, containingDeclaration as LazyClassDescriptor, this.context).createCastToParamCheck(
-                        irOperator == IrTypeOperator.SAFE_CAST, leftExpression.genExpr()
+                    CastCheck(leftExpression, containingDeclaration as LazyClassDescriptor, this.context).createCastToParamCheck(
+                        irOperator == IrTypeOperator.SAFE_CAST, leftExpression.genExpr(), index
                     )
             }
+        }
+        val resultTypeDesc = resultType.constructor.declarationDescriptor
+        if (resultTypeDesc is ClassDescriptor && resultTypeDesc.isReified && ReificationContext.getReificationContext<Boolean?>(
+                expression,
+                ReificationContext.ContextTypes.REIFICATION_CONTEXT
+            ) == null
+        ) {
+            leftExpression =
+                CastCheck(leftExpression, resultTypeDesc as LazyClassDescriptor, this.context).createCastToParamTypeCheck(
+                    irOperator == IrTypeOperator.SAFE_CAST, leftExpression.genExpr(), resultType.asSimpleType(), this.scope.scopeOwner
+                )
         }
 
         return IrTypeOperatorCallImpl(

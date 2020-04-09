@@ -6,6 +6,7 @@
 package org.jetbrains.kotlin.psi2ir.transformations.reification.synthetic
 
 import com.intellij.psi.util.PsiTreeUtil
+import org.jetbrains.kotlin.descriptors.DeclarationDescriptor
 import org.jetbrains.kotlin.descriptors.ModuleDescriptor
 import org.jetbrains.kotlin.ir.expressions.IrExpression
 import org.jetbrains.kotlin.name.Name
@@ -30,12 +31,11 @@ import org.jetbrains.kotlin.types.SimpleType
 
 class CastCheck(
     val expression: KtExpression,
-    private val descIndex: Int,
     val clazz: LazyClassDescriptor,
     private val generatorContext: GeneratorContext
 ) {
 
-    fun createCastToParamCheck(isSafe: Boolean, generatedExpression: IrExpression): KtExpression {
+    fun createCastToParamCheck(isSafe: Boolean, generatedExpression: IrExpression, descIndex: Int): KtExpression {
         val expressionText = this.expression.text
         val cast = if (isSafe) "safeCast" else "cast"
         return KtPsiFactory(expression.project, false).createExpression("desc.p[$descIndex].$cast($expressionText)").apply {
@@ -71,9 +71,10 @@ class CastCheck(
     }
 
     fun createCastToParamTypeCheck(
-        isSafe: Boolean, generatedExpression: IrExpression, againstType: SimpleType
-    ) {
-        val leftSide = this.expression.text
+        isSafe: Boolean, generatedExpression: IrExpression, againstType: SimpleType, containingDeclaration: DeclarationDescriptor
+    ) : KtExpression {
+        val expressionText = this.expression.text
+        val cast = if (isSafe) "safeCast" else "cast"
         val clazz = againstType.constructor.declarationDescriptor as LazyClassDescriptor
         val originalDescriptor = findOriginalDescriptor(againstType.arguments)
         val text = buildString {
@@ -97,7 +98,21 @@ class CastCheck(
                     clazz
                 )
             )
-            append(".isInstance($leftSide)")
+            append(".$cast($expressionText)")
         }
+        return KtPsiFactory(expression.project, false).createExpression(text)
+            .apply {
+                val createDescExpression = (this as KtDotQualifiedExpression).receiverExpression
+                val castCall = this.selectorExpression!! as KtCallExpression
+                registerCastChecking(createDescExpression, castCall, generatedExpression, cast)
+                registerDescriptorCreatingCall(
+                    clazz,
+                    againstType.arguments,
+                    containingDeclaration,
+                    generatorContext,
+                    createDescExpression as KtDotQualifiedExpression,
+                    originalDescriptor
+                )
+            }
     }
 }
