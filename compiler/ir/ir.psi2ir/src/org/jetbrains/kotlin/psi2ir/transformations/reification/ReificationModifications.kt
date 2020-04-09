@@ -6,6 +6,7 @@ import org.jetbrains.kotlin.descriptors.*
 import org.jetbrains.kotlin.incremental.KotlinLookupLocation
 import org.jetbrains.kotlin.name.Name
 import org.jetbrains.kotlin.psi.*
+import org.jetbrains.kotlin.psi2ir.findSingleFunction
 import org.jetbrains.kotlin.psi2ir.transformations.reification.synthetic.createTypeParametersDescriptorsSource
 import org.jetbrains.kotlin.resolve.BindingContext
 import org.jetbrains.kotlin.resolve.DelegatingBindingTrace
@@ -372,6 +373,38 @@ fun registerAccessToTypeParameter(
             KtNameReferenceExpression::class.java
         )!!
     )
+}
+
+fun registerTypeOperationCall(
+    castCallExpression: KtCallExpression,
+    clazz: LazyClassDescriptor,
+    receiver: ExpressionReceiver,
+    opName: String
+) {
+    val candidateDesc = clazz.computeExternalType(createHiddenTypeReference(castCallExpression.project, "Cla"))
+        .memberScope.findSingleFunction(Name.identifier(opName))
+    val call = CallMaker.makeCall(
+        castCallExpression,
+        receiver,
+        (castCallExpression.parent as KtDotQualifiedExpression).operationTokenNode,
+        castCallExpression.calleeExpression,
+        castCallExpression.valueArguments
+    )
+    val resolvedCall = ResolvedCallImpl(
+        call,
+        candidateDesc,
+        receiver,
+        null,
+        ExplicitReceiverKind.DISPATCH_RECEIVER,
+        null,
+        DelegatingBindingTrace(BindingContext.EMPTY, ""),
+        TracingStrategy.EMPTY,
+        DataFlowInfoForArgumentsImpl(DataFlowInfo.EMPTY, call)
+    )
+    ValueArgumentsToParametersMapper.mapValueArgumentsToParameters(call, TracingStrategy.EMPTY, resolvedCall)
+    resolvedCall.markCallAsCompleted()
+    resolvedCall.setStatusToReificationSuccess()
+    ReificationContext.register(castCallExpression, ReificationContext.ContextTypes.RESOLVED_CALL, resolvedCall)
 }
 
 fun findOriginalDescriptor(args: List<TypeProjection>): LazyClassDescriptor? {

@@ -127,7 +127,7 @@ class OperatorExpressionGenerator(statementGenerator: StatementGenerator) : Stat
                     typeDesc
                 )
                 leftExpression =
-                    CastCheck(leftExpression, index, containingDeclaration as LazyClassDescriptor, this.context).createInstanceCheck(
+                    CastCheck(leftExpression, index, containingDeclaration as LazyClassDescriptor, this.context).createCastToParamCheck(
                         irOperator == IrTypeOperator.SAFE_CAST, leftExpression.genExpr()
                     )
             }

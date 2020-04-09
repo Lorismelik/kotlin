@@ -26,6 +26,7 @@ import org.jetbrains.kotlin.resolve.lazy.descriptors.LazyClassDescriptor
 import org.jetbrains.kotlin.resolve.reification.ReificationContext
 import org.jetbrains.kotlin.resolve.scopes.receivers.ExpressionReceiver
 import org.jetbrains.kotlin.types.KotlinType
+import org.jetbrains.kotlin.types.SimpleType
 
 class CastCheck(
     val expression: KtExpression,
@@ -34,63 +35,69 @@ class CastCheck(
     private val generatorContext: GeneratorContext
 ) {
 
-    fun createInstanceCheck(isSafe: Boolean, generatedExpression: IrExpression): KtExpression {
+    fun createCastToParamCheck(isSafe: Boolean, generatedExpression: IrExpression): KtExpression {
         val expressionText = this.expression.text
         val cast = if (isSafe) "safeCast" else "cast"
         return KtPsiFactory(expression.project, false).createExpression("desc.p[$descIndex].$cast($expressionText)").apply {
-            val newExpression = ((this as KtDotQualifiedExpression).selectorExpression!!.lastChild as KtValueArgumentList).arguments.first()
+            val castCallExpression = (this as KtDotQualifiedExpression).selectorExpression!!
             val arrayAccessExpression = this.receiverExpression as KtArrayAccessExpression
-            val castReciever = ExpressionReceiver.create(
-                arrayAccessExpression,
-                clazz.computeExternalType(createHiddenTypeReference(this.project, "Cla")),
-                BindingContext.EMPTY
-            )
-            val isInstanceCallExpression = PsiTreeUtil.findChildOfType(
-                this,
-                KtCallExpression::class.java
-            )!!
-            registerCastCall(isInstanceCallExpression, clazz, castReciever, cast)
             registerAccessToTypeParameter(
                 arrayAccessExpression,
                 clazz,
                 generatorContext.moduleDescriptor,
                 generatorContext.builtIns.intType
             )
-            ReificationContext.register(
-                newExpression.getArgumentExpression()!!, ReificationContext.ContextTypes.INSTANCE_OF_LEFT_IR, generatedExpression
-            )
+            registerCastChecking(arrayAccessExpression, castCallExpression, generatedExpression, cast)
+
         }
     }
 
-    private fun registerCastCall(
-        castCallExpression: KtCallExpression,
-        clazz: LazyClassDescriptor,
-        receiver: ExpressionReceiver,
-        opName: String
+    private fun registerCastChecking(
+        recieverExpression: KtExpression,
+        callExpression: KtExpression,
+        generatedExpression: IrExpression,
+        cast: String
     ) {
-        val candidateDesc = clazz.computeExternalType(createHiddenTypeReference(castCallExpression.project, "Cla"))
-            .memberScope.findSingleFunction(Name.identifier(opName))
-        val call = CallMaker.makeCall(
-            castCallExpression,
-            receiver,
-            (castCallExpression.parent as KtDotQualifiedExpression).operationTokenNode,
-            castCallExpression.calleeExpression,
-            castCallExpression.valueArguments
+        val argument = (callExpression.lastChild as KtValueArgumentList).arguments.first().getArgumentExpression()!!
+        val castReciever = ExpressionReceiver.create(
+            recieverExpression,
+            clazz.computeExternalType(createHiddenTypeReference(recieverExpression.project, "Cla")),
+            BindingContext.EMPTY
         )
-        val resolvedCall = ResolvedCallImpl(
-            call,
-            candidateDesc,
-            receiver,
-            null,
-            ExplicitReceiverKind.DISPATCH_RECEIVER,
-            null,
-            DelegatingBindingTrace(BindingContext.EMPTY, ""),
-            TracingStrategy.EMPTY,
-            DataFlowInfoForArgumentsImpl(DataFlowInfo.EMPTY, call)
+        registerTypeOperationCall(callExpression as KtCallExpression, clazz, castReciever, cast)
+        ReificationContext.register(
+            argument, ReificationContext.ContextTypes.INSTANCE_OF_LEFT_IR, generatedExpression
         )
-        ValueArgumentsToParametersMapper.mapValueArgumentsToParameters(call, TracingStrategy.EMPTY, resolvedCall)
-        resolvedCall.markCallAsCompleted()
-        resolvedCall.setStatusToReificationSuccess()
-        ReificationContext.register(castCallExpression, ReificationContext.ContextTypes.RESOLVED_CALL, resolvedCall)
+    }
+
+    fun createCastToParamTypeCheck(
+        isSafe: Boolean, generatedExpression: IrExpression, againstType: SimpleType
+    ) {
+        val leftSide = this.expression.text
+        val clazz = againstType.constructor.declarationDescriptor as LazyClassDescriptor
+        val originalDescriptor = findOriginalDescriptor(againstType.arguments)
+        val text = buildString {
+            append(
+                createCodeForDescriptorFactoryMethodCall(
+                    {
+                        createTypeParametersDescriptorsSource(
+                            filterArgumentsForReifiedTypeParams(
+                                againstType.arguments,
+                                clazz.declaredTypeParameters
+                            ), originalDescriptor?.declaredReifiedTypeParameters ?: emptyList()
+                        )
+                    },
+                    {
+                        createCodeForAnnotations(
+                            filterArgumentsForReifiedTypeParams(againstType.arguments, clazz.declaredTypeParameters),
+                            clazz,
+                            originalDescriptor?.declaredReifiedTypeParameters ?: emptyList()
+                        )
+                    },
+                    clazz
+                )
+            )
+            append(".isInstance($leftSide)")
+        }
     }
 }

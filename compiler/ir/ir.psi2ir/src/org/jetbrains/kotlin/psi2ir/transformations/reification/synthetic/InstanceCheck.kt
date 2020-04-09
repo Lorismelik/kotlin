@@ -51,7 +51,7 @@ fun createDescriptorInstanceCheck(
             this,
             KtCallExpression::class.java
         )!!
-        registerIsInstanceCall(isInstanceCallExpression, clazz, isInstanceCallReciever)
+        registerTypeOperationCall(isInstanceCallExpression, clazz, isInstanceCallReciever, "isInstance")
         registerAccessToTypeParameter(arrayAccessExpression, clazz, moduleDesc, builtInIntType)
     }
 }
@@ -101,7 +101,7 @@ fun createReifiedParamTypeInstanceCheck(
                 clazz.computeExternalType(createHiddenTypeReference(this.project, "Cla")),
                 BindingContext.EMPTY
             )
-            registerIsInstanceCall(isInstanceCall, clazz, isInstanceCallReciever)
+            registerTypeOperationCall(isInstanceCall, clazz, isInstanceCallReciever, "isInstance")
             registerDescriptorCreatingCall(
                 clazz,
                 againstType.arguments,
@@ -111,33 +111,6 @@ fun createReifiedParamTypeInstanceCheck(
                 originalDescriptor
             )
         }
-}
-
-private fun registerIsInstanceCall(isInstanceCallExpression: KtCallExpression, clazz: LazyClassDescriptor, receiver: ExpressionReceiver) {
-    val candidateDesc = clazz.computeExternalType(createHiddenTypeReference(isInstanceCallExpression.project, "Cla"))
-        .memberScope.findSingleFunction(Name.identifier("isInstance"))
-    val call = CallMaker.makeCall(
-        isInstanceCallExpression,
-        receiver,
-        (isInstanceCallExpression.parent as KtDotQualifiedExpression).operationTokenNode,
-        isInstanceCallExpression.calleeExpression,
-        isInstanceCallExpression.valueArguments
-    )
-    val resolvedCall = ResolvedCallImpl(
-        call,
-        candidateDesc,
-        receiver,
-        null,
-        ExplicitReceiverKind.DISPATCH_RECEIVER,
-        null,
-        DelegatingBindingTrace(BindingContext.EMPTY, ""),
-        TracingStrategy.EMPTY,
-        DataFlowInfoForArgumentsImpl(DataFlowInfo.EMPTY, call)
-    )
-    ValueArgumentsToParametersMapper.mapValueArgumentsToParameters(call, TracingStrategy.EMPTY, resolvedCall)
-    resolvedCall.markCallAsCompleted()
-    resolvedCall.setStatusToReificationSuccess()
-    ReificationContext.register(isInstanceCallExpression, ReificationContext.ContextTypes.RESOLVED_CALL, resolvedCall)
 }
 
 
