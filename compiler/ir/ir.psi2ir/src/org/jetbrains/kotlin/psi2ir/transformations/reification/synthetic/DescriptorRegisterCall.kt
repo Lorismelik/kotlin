@@ -39,6 +39,7 @@ import org.jetbrains.kotlin.resolve.descriptorUtil.getSuperClassOrAny
 import org.jetbrains.kotlin.resolve.lazy.descriptors.LazyClassDescriptor
 import org.jetbrains.kotlin.resolve.reification.ReificationContext
 import org.jetbrains.kotlin.resolve.scopes.receivers.ClassQualifier
+import org.jetbrains.kotlin.resolve.scopes.receivers.ClassValueReceiver
 import org.jetbrains.kotlin.resolve.source.KotlinSourceElement
 import org.jetbrains.kotlin.types.*
 import org.jetbrains.kotlin.types.expressions.DoubleColonLHS
@@ -109,6 +110,37 @@ class DescriptorRegisterCall(
 
         //4 argument annotations array
         registerAnnotationsArrayCall.invoke()
+
+        //5 argument father desc for non-reified types
+        if (registerCall.valueArguments.size > 4) {
+            val argumentExpression = registerCall.valueArguments[4].getArgumentExpression() as KtDotQualifiedExpression
+            val callExpression = argumentExpression.selectorExpression as? KtCallExpression
+            if (callExpression != null) {
+                DescriptorRegisterCall(
+                    registerCall.project,
+                    clazz,
+                    callExpression,
+                    containingDeclaration,
+                    context,
+                    {
+                        registerArrayOfResolvedCall(
+                            clazz,
+                            callExpression.valueArguments[2].getArgumentExpression() as KtCallExpression,
+                            clazz.computeExternalType(createHiddenTypeReference(callExpression.project, "Cla"))
+                        )
+                    },
+                    {
+                        registerArrayOfResolvedCall(
+                            clazz,
+                            callExpression.valueArguments[3].getArgumentExpression() as KtCallExpression,
+                            context.builtIns.intType
+                        )
+                    }
+                ).createCallDescriptor()
+            } else {
+                registerAnyDescCall(argumentExpression)
+            }
+        }
     }
 
     private fun registerReflectionReference(expression: KtClassLiteralExpression, type: KotlinType) {
@@ -147,5 +179,43 @@ class DescriptorRegisterCall(
         ValueArgumentsToParametersMapper.mapValueArgumentsToParameters(call, TracingStrategy.EMPTY, resolvedCall)
         ReificationContext.register(registerCall, ReificationContext.ContextTypes.RESOLVED_CALL, resolvedCall)
         return resolvedCall
+    }
+
+    private fun registerAnyDescCall(argExpression: KtDotQualifiedExpression) {
+        val nameReferenceExpression = argExpression.selectorExpression as KtNameReferenceExpression
+        val manDescType = clazz.computeExternalType(createHiddenTypeReference(nameReferenceExpression.project, "Man"))
+        val manDesc = manDescType.constructor.declarationDescriptor as ClassDescriptor
+        val explicitReceiver = ClassQualifier(
+            (argExpression.receiverExpression as KtDotQualifiedExpression).selectorExpression as KtNameReferenceExpression,
+            manDesc
+        )
+        val call =
+            CallMaker.makeCall(
+                nameReferenceExpression,
+                explicitReceiver,
+                argExpression.operationTokenNode,
+                nameReferenceExpression,
+                emptyList()
+            )
+
+        ReificationContext.register(
+            (argExpression.receiverExpression as KtDotQualifiedExpression).selectorExpression!!,
+            ReificationContext.ContextTypes.DESC,
+            manDesc
+        )
+        val candidate = manDescType.memberScope.getContributedDescriptors().first { it.name.identifier == "anyDesc" }
+        val resolvedCall = ResolvedCallImpl(
+            call,
+            candidate as CallableDescriptor,
+            ClassValueReceiver(explicitReceiver, manDescType),
+            null,
+            ExplicitReceiverKind.DISPATCH_RECEIVER,
+            null,
+            DelegatingBindingTrace(BindingContext.EMPTY, ""),
+            TracingStrategy.EMPTY,
+            DataFlowInfoForArgumentsImpl(DataFlowInfo.EMPTY, call)
+        )
+        ValueArgumentsToParametersMapper.mapValueArgumentsToParameters(call, TracingStrategy.EMPTY, resolvedCall)
+        ReificationContext.register(nameReferenceExpression, ReificationContext.ContextTypes.RESOLVED_CALL, resolvedCall)
     }
 }
