@@ -39,6 +39,7 @@ import org.jetbrains.kotlin.types.TypeApproximator
 import org.jetbrains.kotlin.types.TypeApproximatorConfiguration
 import org.jetbrains.kotlin.types.TypeIntersector.getUpperBoundsAsType
 import org.jetbrains.kotlin.types.TypeIntersector.intersectTypes
+import org.jetbrains.kotlin.types.typeUtil.getImmediateSuperclassNotAny
 import java.lang.StringBuilder
 
 
@@ -270,7 +271,12 @@ class DescriptorFactoryMethodGenerator(val project: Project, val clazz: LazyClas
             }
             registerDescriptorCreatingCall(
                 father,
-                clazz.typeConstructor.supertypes.firstOrNull()?.arguments ?: emptyList(),
+                filterArgumentsForReifiedTypeParams(
+                    clazz.defaultType.getImmediateSuperclassNotAny()?.arguments ?: emptyList(),
+                    (clazz.defaultType.getImmediateSuperclassNotAny()?.constructor?.declarationDescriptor as? ClassDescriptor)?.declaredReifiedTypeParameters
+                        ?: emptyList()
+                )
+                ,
                 containingDesc,
                 context,
                 fatherCreatingCall as KtDotQualifiedExpression,

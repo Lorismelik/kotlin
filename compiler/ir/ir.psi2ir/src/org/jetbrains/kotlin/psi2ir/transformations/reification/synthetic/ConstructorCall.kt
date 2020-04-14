@@ -45,16 +45,17 @@ fun createDescriptorArgument(
 ): KtValueArgument {
     val lol = getAllImplementedInterfaces(descriptor)
     val originalDescriptor = findOriginalDescriptor(args)
+    val filteredArgs = filterArgumentsForReifiedTypeParams(args, descriptor.declaredTypeParameters)
     val text = createCodeForDescriptorFactoryMethodCall(
         {
             createTypeParametersDescriptorsSource(
-                filterArgumentsForReifiedTypeParams(args, descriptor.declaredTypeParameters),
+                filteredArgs,
                 originalDescriptor?.declaredReifiedTypeParameters ?: emptyList()
             )
         },
         {
             createCodeForAnnotations(
-                filterArgumentsForReifiedTypeParams(args, descriptor.declaredTypeParameters),
+                filteredArgs,
                 descriptor,
                 originalDescriptor?.declaredReifiedTypeParameters ?: emptyList()
             )
@@ -64,7 +65,7 @@ fun createDescriptorArgument(
     return KtPsiFactory(project, false).createArgument(text).apply {
         registerDescriptorCreatingCall(
             descriptor,
-            args,
+            filteredArgs,
             containingDeclaration,
             context,
             this.getArgumentExpression() as KtDotQualifiedExpression,
@@ -167,12 +168,13 @@ fun registerParamsDescsCreating(
                 val callExpression = argExpression.selectorExpression!! as KtCallExpression
                 // Try to create desc for reified type
                 if (callExpression.calleeExpression!!.textMatches("createTD")) {
-                    val typeDescriptor =
+                    val reifiedType =
                         args.first { (it.type.constructor.declarationDescriptor as? ClassDescriptor)?.name?.identifier == argExpression.receiverExpression.text }
                             .type
+                    val reifiedTypeDesc = reifiedType.constructor.declarationDescriptor as LazyClassDescriptor
                     registerDescriptorCreatingCall(
-                        typeDescriptor.constructor.declarationDescriptor as LazyClassDescriptor,
-                        typeDescriptor.arguments,
+                        reifiedTypeDesc,
+                        filterArgumentsForReifiedTypeParams(reifiedType.arguments, reifiedTypeDesc.declaredTypeParameters),
                         containingDeclaration,
                         context,
                         argExpression,

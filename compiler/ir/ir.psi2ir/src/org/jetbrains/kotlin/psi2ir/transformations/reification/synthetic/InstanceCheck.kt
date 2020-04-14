@@ -104,7 +104,7 @@ fun createReifiedParamTypeInstanceCheck(
             registerTypeOperationCall(isInstanceCall, clazz, isInstanceCallReciever, "isInstance")
             registerDescriptorCreatingCall(
                 clazz,
-                againstType.arguments,
+                filterArgumentsForReifiedTypeParams(againstType.arguments, clazz.declaredTypeParameters),
                 containingDeclaration,
                 context,
                 createDescExpression as KtDotQualifiedExpression,

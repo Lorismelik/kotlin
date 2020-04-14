@@ -51,6 +51,7 @@ fun createTypeParameterDescriptorSource(
     return buildString {
         append(
             when {
+                arg.isStarProjection -> "kotlin.reification._D.Man.starProjection"
                 arg.type.isTypeParameter() -> {
                     val index =
                         callerTypeParams.indexOfFirst { param -> param.defaultType.hashCode() == arg.type.hashCode() }
@@ -76,7 +77,6 @@ fun createTypeParameterDescriptorSource(
                         classDesc
                     )
                 }
-                arg.isStarProjection -> "kotlin.reification._D.Man.starProjection"
                 else -> createSimpleTypeRegistrationSource(arg.type)
             }
         )

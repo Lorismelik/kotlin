@@ -5,10 +5,12 @@
 package kotlin.reification
 
 import kotlin.reflect.KClass
+
 abstract class _D(
     val p: Array<Cla>,
     var id: Int,
     val pureInstanceCheck: (Any?) -> Boolean,
+    val annotations: Array<Int>,
     val type: KClass<*>? = null
 ) {
     private val hashValue: Int
@@ -35,21 +37,13 @@ abstract class _D(
     fun isInstance(o: Any?): Boolean {
         var oDesc: Cla? = null
         if (o is Parametric) oDesc = o.getD()
-        if (o is Cla) oDesc = o
-        if (oDesc == Man.starProjection) return true
         if (oDesc != null) {
             while (oDesc!!.type != this.type && oDesc.father != null) {
                 oDesc = oDesc.father!!
             }
             if (oDesc.type == this.type) {
                 this.p.forEachIndexed { index, thisParam ->
-                    val thatParam = oDesc.p[index]
-                    val lower = thatParam.bounds?.first
-                    val upper = thatParam.bounds?.second
-                    if (!lower!!.isInstance(thisParam.bounds!!.first!!)) {
-                        return false
-                    }
-                    if (!thisParam.bounds!!.second!!.isInstance(upper)) {
+                    if (!thisParam.isInstanceForFreshTypeVars(oDesc.p[index], arrayOf(this.annotations[index], oDesc.annotations[index]))) {
                         return false
                     }
                 }
@@ -61,11 +55,47 @@ abstract class _D(
         }
     }
 
+    protected fun isInstanceForFreshTypeVars(o: Cla, annotations: Array<Int>): Boolean {
+        if (this == Man.starProjection) return true
+        val thisBound = createBounds(annotations[0], this as Cla)
+        val thatBound = createBounds(annotations[1], o)
+        var lBound: Cla? = thisBound.first
+        if (lBound != Man.nothingDesc) {
+            while (lBound != null && lBound != thatBound.first) {
+                lBound = lBound.father
+            }
+            if (lBound == null) return false
+        }
+        if (thisBound.second != Man.anyDesc) {
+            var uBound: Cla? = thatBound.second
+            while (uBound != null && uBound != thisBound.second) {
+                uBound = uBound.father
+            }
+            if (uBound == null) return false
+        }
+        this.p.forEachIndexed { index, thisParam ->
+            if (!thisParam.isInstanceForFreshTypeVars(o.p[index], arrayOf(this.annotations[index], o.annotations[index]))) {
+                return false
+            }
+        }
+        return true
+    }
+
+    private fun createBounds(variance: Int, cla: Cla): Pair<Cla, Cla> {
+        return when (variance) {
+            Variance.INVARIANT.ordinal -> Pair(cla, cla)
+            Variance.OUT.ordinal -> Pair(Man.nothingDesc, cla)
+            Variance.IN.ordinal -> Pair(cla, Man.anyDesc)
+            Variance.BIVARIANT.ordinal -> Pair(Man.nothingDesc, Man.anyDesc)
+            else -> throw Exception("Illegal annotation for reified parameter")
+        }
+    }
+
     override fun equals(other: Any?): Boolean {
         if (this === other) return true
         if (other !is _D) return false
 
-        if (!p.contentEquals(other.p)) return false
+        //if (!p.contentEquals(other.p)) return false
         if (type != other.type) return false
 
         return true
@@ -76,26 +106,9 @@ abstract class _D(
         p: Array<Cla>,
         pureInstanceCheck: (Any?) -> Boolean,
         type: KClass<*>?,
-        val annotations: Array<Int>,
+        annotations: Array<Int>,
         id: Int = -1
-    ) : _D(p, id, pureInstanceCheck, type) {
-        var bounds: Pair<Cla?, Cla?>? = null
-
-        var freshTypeVariable = false
-
-        init {
-            p.forEachIndexed() { index, cla ->
-                cla.bounds = when (annotations[index]) {
-                    Variance.INVARIANT.ordinal -> Pair(cla, cla)
-                    Variance.OUT.ordinal -> Pair(Man.nothingDesc, cla)
-                    Variance.IN.ordinal -> Pair(cla, Man.anyDesc)
-                    Variance.BIVARIANT.ordinal -> Pair(Man.nothingDesc, Man.anyDesc)
-                    else -> throw Exception("Illegal annotation for reified parameter")
-                }
-                if (annotations[index] != Variance.INVARIANT.ordinal) cla.freshTypeVariable = true
-            }
-        }
-
+    ) : _D(p, id, pureInstanceCheck, annotations, type) {
         private var new = true
 
         fun firstReg(): Boolean {
@@ -113,7 +126,7 @@ abstract class _D(
         var countId = 1
         val anyDesc = _D.Cla(arrayOf(), { true }, Any::class, arrayOf())
         val nothingDesc = _D.Cla(arrayOf(), { it is Nothing? }, Nothing::class, arrayOf())
-        val starProjection = _D.Cla(arrayOf(), { true }, null, arrayOf()).apply { bounds = Pair(Man.nothingDesc, Man.anyDesc) }
+        val starProjection = _D.Cla(arrayOf(), { true }, null, arrayOf())
 
         init {
             anyDesc.id = countId
@@ -129,7 +142,6 @@ abstract class _D(
             a: Array<Int> = arrayOf(),
             father: Cla? = null
         ): Cla {
-            println(type)
             val desc = Cla(p, pureCheck, type, a)
             val o = descTable[desc.hashCode()]
             if (o == null) {

@@ -107,7 +107,7 @@ class CastCheck(
                 registerCastChecking(createDescExpression, castCall, generatedExpression, cast)
                 registerDescriptorCreatingCall(
                     clazz,
-                    againstType.arguments,
+                    filterArgumentsForReifiedTypeParams(againstType.arguments, clazz.declaredTypeParameters),
                     containingDeclaration,
                     generatorContext,
                     createDescExpression as KtDotQualifiedExpression,
