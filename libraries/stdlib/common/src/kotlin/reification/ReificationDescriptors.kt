@@ -35,50 +35,65 @@ abstract class _D(
     }
 
     fun isInstance(o: Any?): Boolean {
+        if (this == Man.anyDesc || o == Man.nothingDesc) return true
         var oDesc: Cla? = null
         if (o is Parametric) oDesc = o.getD()
+        if (o is Cla) oDesc = o
         if (oDesc != null) {
             while (oDesc!!.type != this.type && oDesc.father != null) {
                 oDesc = oDesc.father!!
             }
             if (oDesc.type == this.type) {
                 this.p.forEachIndexed { index, thisParam ->
-                    if (!thisParam.isInstanceForFreshTypeVars(oDesc.p[index], arrayOf(this.annotations[index], oDesc.annotations[index]))) {
+                    val checkBounds = annotations[index] != Variance.INVARIANT.ordinal
+                    if (!thisParam.isInstanceForFreshTypeVars(
+                            oDesc.p[index],
+                            arrayOf(this.annotations[index], oDesc.annotations[index]),
+                            checkBounds
+                        )
+                    ) {
+                        println("Params not equal ${oDesc.p[index].type} is ${thisParam.type} for ${oDesc.type} is ${this.type}")
                         return false
                     }
                 }
                 return true
             }
+            println("Types not equal ${oDesc.type} is ${this.type}")
             return false
         } else {
+            println("Pure check $o is ${this.type}")
             return pureInstanceCheck(o)
         }
     }
 
-    protected fun isInstanceForFreshTypeVars(o: Cla, annotations: Array<Int>): Boolean {
+    protected fun isInstanceForFreshTypeVars(o: Cla, annotations: Array<Int>, checkBounds: Boolean = true): Boolean {
         if (this == Man.starProjection) return true
-        val thisBound = createBounds(annotations[0], this as Cla)
-        val thatBound = createBounds(annotations[1], o)
-        var lBound: Cla? = thisBound.first
-        if (lBound != Man.nothingDesc) {
-            while (lBound != null && lBound != thatBound.first) {
-                lBound = lBound.father
-            }
-            if (lBound == null) return false
-        }
-        if (thisBound.second != Man.anyDesc) {
-            var uBound: Cla? = thatBound.second
-            while (uBound != null && uBound != thisBound.second) {
-                uBound = uBound.father
-            }
-            if (uBound == null) return false
-        }
-        this.p.forEachIndexed { index, thisParam ->
-            if (!thisParam.isInstanceForFreshTypeVars(o.p[index], arrayOf(this.annotations[index], o.annotations[index]))) {
+        if (!checkBounds) {
+            if (this.type != o.type || annotations[1] != annotations[0]) {
+                println("Types not equal or annotations ${o.type} is ${this.type} with annotations ${annotations[1]} and ${annotations[0]}")
                 return false
             }
+            this.p.forEachIndexed { index, thisParam ->
+                if (!thisParam.isInstanceForFreshTypeVars(
+                        o.p[index],
+                        arrayOf(this.annotations[index], o.annotations[index]),
+                        checkBounds
+                    )
+                ) {
+                    println("Params not equal ${o.p[index].type} is ${thisParam.type} for ${o.type} is ${this.type}")
+                    return false
+                }
+            }
+            return true
+        } else {
+            val thisBound = createBounds(annotations[0], this as Cla)
+            val thatBound = createBounds(annotations[1], o)
+            if (!thatBound.first.isInstance(thisBound.first) || !thisBound.second.isInstance(thatBound.second)) {
+                println("Bounds not equal for ${o.type} is ${this.type}")
+                return false
+            }
+            return true
         }
-        return true
     }
 
     private fun createBounds(variance: Int, cla: Cla): Pair<Cla, Cla> {

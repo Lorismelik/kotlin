@@ -110,9 +110,7 @@ fun createCodeForAnnotations(
             return@mapIndexed if (fromFactory) "a[$annotationIndex]" else "desc.annotations[$annotationIndex]"
         }
         if (arg.isStarProjection) return@mapIndexed _D.Variance.BIVARIANT.ordinal
-        return@mapIndexed if (!arg.projectionKind.equals(Variance.INVARIANT)) {
-            mapVariance(arg.projectionKind).ordinal
-        } else mapVariance(descriptor.declaredReifiedTypeParameters[index].variance).ordinal
+        return@mapIndexed mapVariance(descriptor.declaredReifiedTypeParameters[index].variance).ordinal
     }.joinToString()
 }
 
@@ -124,11 +122,11 @@ fun mapVariance(compilerVariance: Variance): _D.Variance {
     }
 }
 
-fun createTextTypeReferenceWithStarProjection(type: SimpleType): String {
+fun createTextTypeReferenceWithStarProjection(type: SimpleType, nullable: Boolean = true): String {
     return buildString {
         append(type.constructor)
         if (type.arguments.isNotEmpty()) type.arguments.joinTo(this, separator = ", ", prefix = "<", postfix = ">") { "*" }
-        if (type.isMarkedNullable) append("?")
+        if (nullable) append("?")
     }
 }
 
