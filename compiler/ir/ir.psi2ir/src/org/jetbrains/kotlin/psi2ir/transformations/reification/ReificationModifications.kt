@@ -46,7 +46,8 @@ fun createHiddenTypeReference(project: Project, typeName: String? = null): KtTyp
 fun createTypeParameterDescriptorSource(
     arg: TypeProjection,
     callerTypeParams: List<TypeParameterDescriptor>,
-    fromFactory: Boolean = false
+    fromFactory: Boolean = false,
+    takeAnnotationFromParameter: Boolean = true
 ): String {
     return buildString {
         append(
@@ -71,7 +72,7 @@ fun createTypeParameterDescriptorSource(
                         {
                             createCodeForAnnotations(
                                 filterArgumentsForReifiedTypeParams(arg.type.arguments, classDesc.declaredTypeParameters),
-                                classDesc, callerTypeParams, fromFactory
+                                classDesc, callerTypeParams, fromFactory,  takeAnnotationFromParameter
                             )
                         },
                         classDesc
@@ -101,10 +102,11 @@ fun createCodeForAnnotations(
     args: List<TypeProjection>,
     descriptor: ClassDescriptor,
     callerTypeParams: List<TypeParameterDescriptor> = emptyList(),
-    fromFactory: Boolean = false
+    fromFactory: Boolean = false,
+    takeAnnotationFromParameter: Boolean = true
 ): String {
     return args.mapIndexed<TypeProjection, Any> { index, arg ->
-        if (arg.type.isTypeParameter()) {
+        if (arg.type.isTypeParameter() && takeAnnotationFromParameter) {
             val annotationIndex =
                 callerTypeParams.indexOfFirst { param -> param.defaultType.hashCode() == arg.type.hashCode() }
             return@mapIndexed if (fromFactory) "a[$annotationIndex]" else "desc.annotations[$annotationIndex]"
@@ -423,4 +425,48 @@ fun findOriginalDescriptor(args: List<TypeProjection>): LazyClassDescriptor? {
         }
     }
     return null;
+}
+
+fun registerBoundsCall(boundsCallExpression: KtDotQualifiedExpression, clazz: LazyClassDescriptor, project: Project) {
+    val reificationLibReference = clazz.computeExternalType(createHiddenTypeReference(project))
+    val candidate =
+        reificationLibReference.memberScope.getContributedDescriptors(DescriptorKindFilter.ALL).first { x -> x.name.identifier == "bounds" } as DeserializedPropertyDescriptor
+    val returnType = candidate.returnType
+    val explicitReceiver = ExpressionReceiver.create(
+        boundsCallExpression.receiverExpression as KtNameReferenceExpression,
+        returnType,
+        BindingContext.EMPTY
+    )
+    val call = CallMaker.makeCall(
+        boundsCallExpression.receiverExpression as KtNameReferenceExpression,
+        explicitReceiver,
+        boundsCallExpression.operationTokenNode,
+        boundsCallExpression.selectorExpression,
+        emptyList(),
+        Call.CallType.DEFAULT,
+        false
+    )
+
+    val boundsDescriptorResolvedCall = ResolvedCallImpl(
+        call,
+        candidate,
+        explicitReceiver,
+        null,
+        ExplicitReceiverKind.DISPATCH_RECEIVER,
+        null,
+        DelegatingBindingTrace(BindingContext.EMPTY, ""),
+        TracingStrategy.EMPTY,
+        DataFlowInfoForArgumentsImpl(DataFlowInfo.EMPTY, call)
+    )
+    ReificationContext.register(
+        boundsCallExpression.selectorExpression!!,
+        ReificationContext.ContextTypes.RESOLVED_CALL,
+        boundsDescriptorResolvedCall
+    )
+    ReificationContext.register(
+        boundsCallExpression,
+        ReificationContext.ContextTypes.TYPE,
+        candidate.returnType
+    )
+    boundsDescriptorResolvedCall.markCallAsCompleted()
 }

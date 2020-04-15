@@ -39,6 +39,7 @@ import org.jetbrains.kotlin.types.TypeApproximator
 import org.jetbrains.kotlin.types.TypeApproximatorConfiguration
 import org.jetbrains.kotlin.types.TypeIntersector.getUpperBoundsAsType
 import org.jetbrains.kotlin.types.TypeIntersector.intersectTypes
+import org.jetbrains.kotlin.types.typeUtil.asTypeProjection
 import org.jetbrains.kotlin.types.typeUtil.getImmediateSuperclassNotAny
 import java.lang.StringBuilder
 
@@ -58,14 +59,17 @@ class DescriptorFactoryMethodGenerator(val project: Project, val clazz: LazyClas
     var supertypeAssignment: KtBinaryExpression? = null
     var returnExpression: KtNameReferenceExpression? = null
     var ifExpression: KtIfExpression? = null
+    var boundsAssignment: KtBinaryExpression? = null
 
     private fun createByFactory(): KtNamedFunction {
         val typeRef = createTextTypeReferenceWithStarProjection(this.clazz.defaultType)
         val fatherDescriptor = fatherDescriptorRegisteringCode()
+        val bounds = this.clazz.declaredReifiedTypeParameters.joinToString(",") { createRegisteringCodeForUpperBound(it) }
         val newText = """fun createTD(p: Array<kotlin.reification._D.Cla>, a: Array<Int>): kotlin.reification._D.Cla { 
                 |   val typeDesc = kotlin.reification._D.Man.register({it is $typeRef}, ${this.clazz.defaultType.constructor} :: class, p, a) 
                 |   if (typeDesc.firstReg()) {
                 |       typeDesc.father = $fatherDescriptor
+                |       typeDesc.bounds = arrayOf($bounds)
                 |   }
                 |   return typeDesc
                 |}""".trimMargin()
@@ -76,6 +80,7 @@ class DescriptorFactoryMethodGenerator(val project: Project, val clazz: LazyClas
             typeDescProperty = statements[0] as KtProperty
             ifExpression = statements[1] as KtIfExpression
             supertypeAssignment = (ifExpression!!.then as KtBlockExpression).firstStatement as KtBinaryExpression
+            boundsAssignment = (ifExpression!!.then as KtBlockExpression).statements[1] as KtBinaryExpression
             returnExpression = PsiTreeUtil.findChildOfType(statements[2], KtNameReferenceExpression::class.java)
             registerCall = PsiTreeUtil.findChildOfType(statements[0], KtCallExpression::class.java)
             val valueArgList = PsiTreeUtil.findChildOfType(statements[0], KtValueArgumentList::class.java)
@@ -85,6 +90,17 @@ class DescriptorFactoryMethodGenerator(val project: Project, val clazz: LazyClas
             annotationsArrayArgumentReference =
                 PsiTreeUtil.findChildOfType(valueArgList.arguments[3], KtNameReferenceExpression::class.java)
         }
+    }
+
+    private fun createRegisteringCodeForUpperBound(typeParameterDesc: TypeParameterDescriptor): String {
+        return typeParameterDesc.upperBounds.map {
+            createTypeParameterDescriptorSource(
+                it.asTypeProjection(),
+                listOf(typeParameterDesc),
+                true,
+                false
+            )
+        }.joinToString(",", "arrayOf<kotlin.reification._D.Cla>(", ")")
     }
 
     private fun fatherDescriptorRegisteringCode(): String {
@@ -193,6 +209,7 @@ class DescriptorFactoryMethodGenerator(val project: Project, val clazz: LazyClas
             ReificationContext.register(declaration, ReificationContext.ContextTypes.DESC, desc)
             // It's important to register function desc before register supertype because of cycle reference
             registerSupertypeSetting(it)
+            registerBoundsSetting(it)
             registerVarRefExpression()
         }
     }
@@ -215,6 +232,36 @@ class DescriptorFactoryMethodGenerator(val project: Project, val clazz: LazyClas
         val fatherRef = supertypeAssignment!!.left as KtDotQualifiedExpression
         registerVarRefExpression(fatherRef.receiverExpression)
         registerFatherCall(fatherRef, clazz, supertypeAssignment!!.project)
+    }
+
+    private fun registerBoundsSetting(containingDesc: SimpleFunctionDescriptorImpl) {
+        val boundsExpression = boundsAssignment!!.right!! as KtCallExpression
+        registerArrayOfResolvedCall(
+            clazz,
+            boundsExpression,
+            clazz.computeExternalType(createHiddenTypeReference(boundsExpression.project, "Cla"))
+        )
+        val args = boundsExpression.valueArguments.map { it.getArgumentExpression() as KtCallExpression }
+        val bounds = clazz.declaredReifiedTypeParameters.map { parameterDescriptor -> parameterDescriptor.upperBounds.map { it.asTypeProjection() } }
+        bounds.forEachIndexed { index, list ->
+            registerArrayOfResolvedCall(
+                clazz,
+                args[index],
+                clazz.computeExternalType(createHiddenTypeReference(boundsExpression.project, "Cla"))
+            )
+            registerParamsDescsCreating(
+                args[index].valueArgumentList!!,
+                clazz,
+                context,
+                list,
+                containingDesc,
+                clazz,
+                containingDesc.valueParameters[0]
+            )
+        }
+        val boundsRef = boundsAssignment!!.left as KtDotQualifiedExpression
+        registerVarRefExpression(boundsRef.receiverExpression)
+        registerBoundsCall(boundsRef, clazz, supertypeAssignment!!.project)
     }
 
     private fun registerIfCondition() {

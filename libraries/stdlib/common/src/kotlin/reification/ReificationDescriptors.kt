@@ -15,6 +15,7 @@ abstract class _D(
 ) {
     private val hashValue: Int
     var father: Cla? = null
+    var bounds: Array<Cla> = arrayOf()
 
     init {
         hashValue = processHash()
