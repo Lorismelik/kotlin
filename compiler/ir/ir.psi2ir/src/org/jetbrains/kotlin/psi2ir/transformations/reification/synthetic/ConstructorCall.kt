@@ -43,7 +43,6 @@ fun createDescriptorArgument(
     args: List<TypeProjection>,
     project: Project
 ): KtValueArgument {
-    val lol = getAllImplementedInterfaces(descriptor)
     val originalDescriptor = findOriginalDescriptor(args)
     val filteredArgs = filterArgumentsForReifiedTypeParams(args, descriptor.declaredTypeParameters)
     val text = createCodeForDescriptorFactoryMethodCall(
@@ -346,18 +345,6 @@ fun getArrayOfDescriptor(descriptor: LazyClassDescriptor) =
                 Name.identifier("arrayOf"), NoLookupLocation.FROM_BACKEND
             ).first()
         ) as DeserializedSimpleFunctionDescriptor
-
-fun getAllImplementedInterfaces(descriptor: ClassDescriptor): HashSet<ClassDescriptor> {
-    return with(hashSetOf<ClassDescriptor>()) {
-        descriptor.getSuperInterfaces().also {
-            it.forEach { superInterface ->
-                this.add(superInterface)
-                this.addAll(getAllImplementedInterfaces(superInterface))
-            }
-        }
-        this
-    }
-}
 
 fun registerStarProjectionDescCall(argExpression: KtDotQualifiedExpression, clazz: LazyClassDescriptor) {
     val nameReferenceExpression = argExpression.selectorExpression as KtNameReferenceExpression

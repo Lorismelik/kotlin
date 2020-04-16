@@ -30,10 +30,7 @@ import org.jetbrains.kotlin.serialization.deserialization.descriptors.Deserializ
 import org.jetbrains.kotlin.serialization.deserialization.descriptors.DeserializedPropertyDescriptor
 import org.jetbrains.kotlin.serialization.deserialization.descriptors.DeserializedSimpleFunctionDescriptor
 import org.jetbrains.kotlin.types.*
-import org.jetbrains.kotlin.types.typeUtil.getImmediateSuperclassNotAny
-import org.jetbrains.kotlin.types.typeUtil.isInterface
-import org.jetbrains.kotlin.types.typeUtil.isTypeParameter
-import org.jetbrains.kotlin.types.typeUtil.supertypes
+import org.jetbrains.kotlin.types.typeUtil.*
 import kotlin.reification._D
 
 fun createHiddenTypeReference(project: Project, typeName: String? = null): KtTypeReference {
@@ -132,10 +129,19 @@ fun createTextTypeReferenceWithStarProjection(type: SimpleType, nullable: Boolea
 
 fun createSimpleTypeRegistrationSource(type: KotlinType): String {
     return buildString {
-        val superType = type.getImmediateSuperclassNotAny()?.let { createSimpleTypeRegistrationSource(it) } ?: "kotlin.reification._D.Man.anyDesc"
+        val superType =
+            type.getImmediateSuperclassNotAny()?.let { createSimpleTypeRegistrationSource(it) } ?: "kotlin.reification._D.Man.anyDesc"
+        val implementedInterfaces = type.supertypes().filter { it.isInterface() }.joinToString {
+            createTypeParameterDescriptorSource(
+                it.asTypeProjection(),
+                emptyList(),
+                false
+            )
+        }
+        val isInterface = if (type.isInterface()) "true" else "false"
         val typeRef = createTextTypeReferenceWithStarProjection(type.asSimpleType())
         append(
-            "kotlin.reification._D.Man.register({it is $typeRef}, ${type.constructor} :: class, arrayOf<kotlin.reification._D.Cla>(), arrayOf<Int>(), $superType)"
+            "kotlin.reification._D.Man.register({it is $typeRef}, ${type.constructor} :: class, arrayOf<kotlin.reification._D.Cla>(), arrayOf<Int>(), $superType, arrayOf<kotlin.reification._D.Cla>($implementedInterfaces), $isInterface)"
         )
     }
 }
@@ -423,4 +429,48 @@ fun findOriginalDescriptor(args: List<TypeProjection>): LazyClassDescriptor? {
         }
     }
     return null;
+}
+
+fun registerIntsCall(intsCallExpression: KtDotQualifiedExpression, clazz: LazyClassDescriptor, project: Project) {
+    val reificationLibReference = clazz.computeExternalType(createHiddenTypeReference(project))
+    val candidate =
+        reificationLibReference.memberScope.getContributedDescriptors(DescriptorKindFilter.ALL).first { x -> x.name.identifier == "ints" } as DeserializedPropertyDescriptor
+    val returnType = candidate.returnType
+    val explicitReceiver = ExpressionReceiver.create(
+        intsCallExpression.receiverExpression as KtNameReferenceExpression,
+        returnType,
+        BindingContext.EMPTY
+    )
+    val call = CallMaker.makeCall(
+        intsCallExpression.receiverExpression as KtNameReferenceExpression,
+        explicitReceiver,
+        intsCallExpression.operationTokenNode,
+        intsCallExpression.selectorExpression,
+        emptyList(),
+        Call.CallType.DEFAULT,
+        false
+    )
+
+    val intsResolvedCall = ResolvedCallImpl(
+        call,
+        candidate,
+        explicitReceiver,
+        null,
+        ExplicitReceiverKind.DISPATCH_RECEIVER,
+        null,
+        DelegatingBindingTrace(BindingContext.EMPTY, ""),
+        TracingStrategy.EMPTY,
+        DataFlowInfoForArgumentsImpl(DataFlowInfo.EMPTY, call)
+    )
+    ReificationContext.register(
+        intsCallExpression.selectorExpression!!,
+        ReificationContext.ContextTypes.RESOLVED_CALL,
+        intsResolvedCall
+    )
+    ReificationContext.register(
+        intsCallExpression,
+        ReificationContext.ContextTypes.TYPE,
+        candidate.returnType
+    )
+    intsResolvedCall.markCallAsCompleted()
 }

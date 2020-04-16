@@ -11,10 +11,12 @@ abstract class _D(
     var id: Int,
     val pureInstanceCheck: (Any?) -> Boolean,
     val annotations: Array<Int>,
-    val type: KClass<*>? = null
+    val type: KClass<*>? = null,
+    val isInterface: Boolean = false
 ) {
     private val hashValue: Int
     var father: Cla? = null
+    var ints: Array<Cla> = arrayOf()
 
     init {
         hashValue = processHash()
@@ -40,6 +42,12 @@ abstract class _D(
         if (o is Parametric) oDesc = o.getD()
         if (o is Cla) oDesc = o
         if (oDesc != null) {
+            if (oDesc.isInterface && !this.isInterface) {
+                return false
+            }
+            if (this.isInterface) {
+                return oDesc.ints.any { it == this }
+            }
             while (oDesc!!.type != this.type && oDesc.father != null) {
                 oDesc = oDesc.father!!
             }
@@ -122,8 +130,9 @@ abstract class _D(
         pureInstanceCheck: (Any?) -> Boolean,
         type: KClass<*>?,
         annotations: Array<Int>,
+        isInterface: Boolean = false,
         id: Int = -1
-    ) : _D(p, id, pureInstanceCheck, annotations, type) {
+    ) : _D(p, id, pureInstanceCheck, annotations, type, isInterface) {
         private var new = true
 
         fun firstReg(): Boolean {
@@ -155,15 +164,20 @@ abstract class _D(
             type: KClass<*>,
             p: Array<Cla> = arrayOf(),
             a: Array<Int> = arrayOf(),
-            father: Cla? = null
+            father: Cla? = null,
+            ints: Array<Cla> = arrayOf(),
+            isInterface: Boolean = false
         ): Cla {
-            val desc = Cla(p, pureCheck, type, a)
+            val desc = Cla(p, pureCheck, type, a, isInterface)
             val o = descTable[desc.hashCode()]
             if (o == null) {
                 desc.id = countId++
                 descTable[desc.hashCode()] = desc;
                 if (father != null) {
                     desc.father = father
+                }
+                if (ints.isNotEmpty()) {
+                    desc.ints = ints
                 }
                 return desc;
             }
