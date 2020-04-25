@@ -118,7 +118,7 @@ abstract class _D(
         if (this === other) return true
         if (other !is _D) return false
 
-        //if (!p.contentEquals(other.p)) return false
+        if (!p.contentEquals(other.p)) return false
         if (type != other.type) return false
 
         return true
