@@ -77,13 +77,6 @@ fun createReifiedParamTypeInstanceCheck(
                         ), originalDescriptor?.declaredReifiedTypeParameters ?: emptyList()
                     )
                 },
-                {
-                    createCodeForAnnotations(
-                        filterArgumentsForReifiedTypeParams(againstType.arguments, clazz.declaredTypeParameters),
-                        clazz,
-                        originalDescriptor?.declaredReifiedTypeParameters ?: emptyList()
-                    )
-                },
                 clazz
             )
         )

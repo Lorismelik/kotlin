@@ -9,12 +9,11 @@ import kotlin.reflect.KClass
 abstract class _D(
     val p: Array<Cla>,
     var id: Int,
-    val annotations: Array<Int>,
     val type: KClass<*>? = null
 ) {
     private val hashValue: Int
     var father: Cla? = null
-    var ints: Array<Cla> = arrayOf()
+    var annotations: Array<Int> = arrayOf()
 
     init {
         hashValue = processHash()
@@ -120,9 +119,8 @@ abstract class _D(
     open class Cla(
         p: Array<Cla>,
         type: KClass<*>?,
-        annotations: Array<Int>,
         id: Int = -1
-    ) : _D(p, id, annotations, type) {
+    ) : _D(p, id, type) {
         private var new = true
 
         fun firstReg(): Boolean {
@@ -138,9 +136,9 @@ abstract class _D(
     object Man {
         private val descTable: HashMap<Int, Cla> = HashMap(101, 0.75f)
         var countId = 1
-        val anyDesc = _D.Cla(arrayOf(), Any::class, arrayOf())
-        val nothingDesc = _D.Cla(arrayOf(), Nothing::class, arrayOf())
-        val starProjection = _D.Cla(arrayOf(),null, arrayOf())
+        val anyDesc = _D.Cla(arrayOf(), Any::class)
+        val nothingDesc = _D.Cla(arrayOf(), Nothing::class)
+        val starProjection = _D.Cla(arrayOf(),null)
 
         init {
             anyDesc.id = countId
@@ -151,10 +149,9 @@ abstract class _D(
 
         fun register(
             type: KClass<*>,
-            p: Array<Cla> = arrayOf(),
-            a: Array<Int> = arrayOf()
+            p: Array<Cla> = arrayOf()
         ): Cla {
-            val desc = Cla(p, type, a)
+            val desc = Cla(p, type)
             val o = descTable[desc.hashCode()]
             if (o == null) {
                 desc.id = countId++

@@ -44,19 +44,21 @@ class DescriptorFactoryMethodGenerator(val project: Project, val clazz: LazyClas
 
     var registerCall: KtCallExpression? = null
     var parameterArrayArgumentReference: KtNameReferenceExpression? = null
-    var annotationsArrayArgumentReference: KtNameReferenceExpression? = null
     var typeDescProperty: KtProperty? = null
     var descriptor: LocalVariableDescriptor? = null
     var supertypeAssignment: KtBinaryExpression? = null
     var returnExpression: KtNameReferenceExpression? = null
     var ifExpression: KtIfExpression? = null
+    var annotationsAssignment: KtBinaryExpression? = null
 
     private fun createByFactory(): KtNamedFunction {
         val fatherDescriptor = fatherDescriptorRegisteringCode()
-        val newText = """fun createTD(p: Array<kotlin.reification._D.Cla>, a: Array<Int>): kotlin.reification._D.Cla { 
-                |   val typeDesc = kotlin.reification._D.Man.register(${this.clazz.defaultType.constructor} :: class, p, a) 
+        val annotations = createCodeForAnnotations(clazz)
+        val newText = """fun createTD(p: Array<kotlin.reification._D.Cla>): kotlin.reification._D.Cla { 
+                |   val typeDesc = kotlin.reification._D.Man.register(${this.clazz.defaultType.constructor} :: class, p) 
                 |   if (typeDesc.firstReg()) {
                 |       typeDesc.father = $fatherDescriptor
+                |       typeDesc.annotations = arrayOf<Int>($annotations)
                 |   }
                 |   return typeDesc
                 |}""".trimMargin()
@@ -67,12 +69,12 @@ class DescriptorFactoryMethodGenerator(val project: Project, val clazz: LazyClas
             typeDescProperty = statements[0] as KtProperty
             ifExpression = statements[1] as KtIfExpression
             supertypeAssignment = (ifExpression!!.then as KtBlockExpression).firstStatement as KtBinaryExpression
+            annotationsAssignment = (ifExpression!!.then as KtBlockExpression).statements[1] as KtBinaryExpression
             returnExpression = PsiTreeUtil.findChildOfType(statements[2], KtNameReferenceExpression::class.java)
             registerCall = PsiTreeUtil.findChildOfType(statements[0], KtCallExpression::class.java)
             val valueArgList = PsiTreeUtil.findChildOfType(statements[0], KtValueArgumentList::class.java)
-            parameterArrayArgumentReference = PsiTreeUtil.findChildOfType(valueArgList!!.arguments[1], KtNameReferenceExpression::class.java)
-            annotationsArrayArgumentReference =
-                PsiTreeUtil.findChildOfType(valueArgList.arguments[2], KtNameReferenceExpression::class.java)
+            parameterArrayArgumentReference =
+                PsiTreeUtil.findChildOfType(valueArgList!!.arguments[1], KtNameReferenceExpression::class.java)
         }
     }
 
@@ -101,7 +103,6 @@ class DescriptorFactoryMethodGenerator(val project: Project, val clazz: LazyClas
                         }
                     }.joinToString()
                 },
-                { createCodeForAnnotations(reifiedTypeInstances, supertype, childReifiedTypeParams, true) },
                 supertype
             )
         }
@@ -140,21 +141,11 @@ class DescriptorFactoryMethodGenerator(val project: Project, val clazz: LazyClas
             source = SourceElement.NO_SOURCE
         )
 
-        val annotationsParameter = ValueParameterDescriptorImpl(
-            desc, null, 1, Annotations.EMPTY, Name.identifier("a"),
-            // array of annotations is 2 parameter
-            clazz.computeExternalType(declaration.valueParameters[1].typeReference),
-            declaresDefaultValue = false,
-            isCrossinline = false,
-            isNoinline = false,
-            varargElementType = null,
-            source = SourceElement.NO_SOURCE
-        )
         return desc.initialize(
             null,
             clazzCompanion.thisAsReceiverParameter,
             emptyList(),
-            listOf(paramsDescsParameter, annotationsParameter),
+            listOf(paramsDescsParameter),
             returnType,
             Modality.FINAL,
             Visibilities.PUBLIC
@@ -171,11 +162,6 @@ class DescriptorFactoryMethodGenerator(val project: Project, val clazz: LazyClas
                                            parameterArrayArgumentReference!!,
                                            it.valueParameters[0]
                                        )
-                                   }, {
-                                       registerResolvedCallForParameter(
-                                           annotationsArrayArgumentReference!!,
-                                           it.valueParameters[1]
-                                       )
                                    }).createCallDescriptor()
 
             registerIfCondition()
@@ -183,8 +169,33 @@ class DescriptorFactoryMethodGenerator(val project: Project, val clazz: LazyClas
             ReificationContext.register(declaration, ReificationContext.ContextTypes.DESC, desc)
             // It's important to register function desc before register supertype because of cycle reference
             registerSupertypeSetting(it)
+            registerAnnotationsSetting()
             registerVarRefExpression()
         }
+    }
+
+    private fun registerAnnotationsSetting() {
+        val annotationsExpression = annotationsAssignment!!.right!! as KtCallExpression
+        registerArrayOfResolvedCall(
+            clazz,
+            annotationsExpression,
+            this.context.builtIns.intType
+        )
+        val annotationList = annotationsExpression.valueArgumentList
+        annotationList?.arguments?.forEach { annotation ->
+            val annotationExpression = annotation.getArgumentExpression()!!
+            if (annotationExpression is KtConstantExpression) {
+                registerIntConstant(
+                    annotationExpression,
+                    context.moduleDescriptor,
+                    context.builtIns.intType
+                )
+            }
+        }
+
+        val annotationsRef = annotationsAssignment!!.left as KtDotQualifiedExpression
+        registerVarRefExpression(annotationsRef.receiverExpression)
+        registerAnnotationsCall(annotationsRef, clazz, annotationsAssignment!!.project)
     }
 
     private fun registerDescVariable(containingDesc: SimpleFunctionDescriptorImpl) {

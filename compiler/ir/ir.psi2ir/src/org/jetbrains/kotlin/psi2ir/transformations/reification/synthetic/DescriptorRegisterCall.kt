@@ -51,8 +51,7 @@ class DescriptorRegisterCall(
     private val registerCall: KtCallExpression,
     val containingDeclaration: DeclarationDescriptor,
     val context: GeneratorContext,
-    private val registerParamsArrayCall: (() -> Unit)? = null,
-    private val registerAnnotationsArrayCall: (() -> Unit)? = null
+    private val registerParamsArrayCall: (() -> Unit)? = null
 ) {
 
     fun createCallDescriptor() {
@@ -68,9 +67,6 @@ class DescriptorRegisterCall(
         )
         //2 argument parameters array (optional)
         registerParamsArrayCall?.invoke()
-
-        //3 argument annotations array (optional)
-        registerAnnotationsArrayCall?.invoke()
     }
 
 

@@ -52,13 +52,6 @@ fun createDescriptorArgument(
                 originalDescriptor?.declaredReifiedTypeParameters ?: emptyList()
             )
         },
-        {
-            createCodeForAnnotations(
-                filteredArgs,
-                descriptor,
-                originalDescriptor?.declaredReifiedTypeParameters ?: emptyList()
-            )
-        },
         descriptor
     )
     return KtPsiFactory(project, false).createArgument(text).apply {
@@ -96,20 +89,12 @@ fun registerDescriptorCreatingCall(
         originalDescriptorParamsArray,
         originalDescriptorAnnotationArray
     )
-    val annotations =
-        ((expression.selectorExpression!! as KtCallExpression).valueArguments[1].getArgumentExpression() as KtCallExpression).valueArgumentList
-    registerAnnotations(annotations, context, originalDescriptor, originalDescriptorAnnotationArray)
     val callExpression = expression.selectorExpression as KtCallExpression
     val classReceiverReferenceExpression = expression.receiverExpression as KtNameReferenceExpression
     registerArrayOfResolvedCall(
         descriptor,
         callExpression.valueArguments[0].getArgumentExpression() as KtCallExpression,
         descriptor.computeExternalType(createHiddenTypeReference(callExpression.project, "Cla"))
-    )
-    registerArrayOfResolvedCall(
-        descriptor,
-        callExpression.valueArguments[1].getArgumentExpression() as KtCallExpression,
-        context.builtIns.intType
     )
     DescriptorFactoryMethodGenerator(
         expression.project,
