@@ -7,7 +7,7 @@ package kotlin.reification
 import kotlin.reflect.KClass
 
 abstract class _D(
-    val p: Array<Cla>,
+    val p: Array<Cla>?,
     var id: Int,
     val type: KClass<*>? = null
 ) {
@@ -19,7 +19,7 @@ abstract class _D(
         hashValue = processHash()
     }
 
-    private fun processHash() = type.hashCode() * p.contentHashCode()
+    private fun processHash() = type.hashCode() * 31 + (p?.contentHashCode() ?: 0) * 31
 
     override fun hashCode(): Int {
         return hashValue
@@ -43,15 +43,15 @@ abstract class _D(
                 oDesc = oDesc.father!!
             }
             if (oDesc.type == this.type) {
-                this.p.forEachIndexed { index, thisParam ->
+                this.p?.forEachIndexed { index, thisParam ->
                     val checkBounds = annotations[index] != Variance.INVARIANT.ordinal
                     if (!thisParam.isInstanceForFreshTypeVars(
-                            oDesc.p[index],
+                            oDesc.p!![index],
                             arrayOf(this.annotations[index], oDesc.annotations[index]),
                             checkBounds
                         )
                     ) {
-                        println("Params not equal ${oDesc.p[index].type} is ${thisParam.type} for ${oDesc.type} is ${this.type}")
+                        println("Params not equal ${oDesc.p!![index].type} is ${thisParam.type} for ${oDesc.type} is ${this.type}")
                         return false
                     }
                 }
@@ -72,9 +72,9 @@ abstract class _D(
                 println("Types not equal or annotations ${o.type} is ${this.type} with annotations ${annotations[1]} and ${annotations[0]}")
                 return false
             }
-            this.p.forEachIndexed { index, thisParam ->
+            this.p?.forEachIndexed { index, thisParam ->
                 if (!thisParam.isInstanceForFreshTypeVars(
-                        o.p[index],
+                        o.p!![index],
                         arrayOf(this.annotations[index], o.annotations[index]),
                         checkBounds
                     )
@@ -108,8 +108,11 @@ abstract class _D(
     override fun equals(other: Any?): Boolean {
         if (this === other) return true
         if (other !is _D) return false
-
-        if (!p.contentEquals(other.p)) return false
+        if (p != null && other.p != null) {
+            if (!p.contentEquals(other.p)) return false
+        } else if (!(p == null && other.p == null)) {
+            return false
+        }
         if (type != other.type) return false
 
         return true
@@ -117,7 +120,7 @@ abstract class _D(
 
 
     open class Cla(
-        p: Array<Cla>,
+        p: Array<Cla>?,
         type: KClass<*>?,
         id: Int = -1
     ) : _D(p, id, type) {
@@ -149,7 +152,7 @@ abstract class _D(
 
         fun register(
             type: KClass<*>,
-            p: Array<Cla> = arrayOf()
+            p: Array<Cla>? = null
         ): Cla {
             val desc = Cla(p, type)
             val o = descTable[desc.hashCode()]
