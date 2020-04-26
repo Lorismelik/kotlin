@@ -9,10 +9,8 @@ import kotlin.reflect.KClass
 abstract class _D(
     val p: Array<Cla>,
     var id: Int,
-    val pureInstanceCheck: (Any?) -> Boolean,
     val annotations: Array<Int>,
-    val type: KClass<*>? = null,
-    val isInterface: Boolean = false
+    val type: KClass<*>? = null
 ) {
     private val hashValue: Int
     var father: Cla? = null
@@ -42,12 +40,6 @@ abstract class _D(
         if (o is Parametric) oDesc = o.getD()
         if (o is Cla) oDesc = o
         if (oDesc != null) {
-            if (oDesc.isInterface && !this.isInterface) {
-                return false
-            }
-            if (this.isInterface) {
-                return oDesc.ints.any { it == this }
-            }
             while (oDesc!!.type != this.type && oDesc.father != null) {
                 oDesc = oDesc.father!!
             }
@@ -70,7 +62,7 @@ abstract class _D(
             return false
         } else {
             println("Pure check $o is ${this.type}")
-            return pureInstanceCheck(o)
+            return type!!.isInstance(o)
         }
     }
 
@@ -127,12 +119,10 @@ abstract class _D(
 
     open class Cla(
         p: Array<Cla>,
-        pureInstanceCheck: (Any?) -> Boolean,
         type: KClass<*>?,
         annotations: Array<Int>,
-        isInterface: Boolean = false,
         id: Int = -1
-    ) : _D(p, id, pureInstanceCheck, annotations, type, isInterface) {
+    ) : _D(p, id, annotations, type) {
         private var new = true
 
         fun firstReg(): Boolean {
@@ -148,9 +138,9 @@ abstract class _D(
     object Man {
         private val descTable: HashMap<Int, Cla> = HashMap(101, 0.75f)
         var countId = 1
-        val anyDesc = _D.Cla(arrayOf(), { true }, Any::class, arrayOf())
-        val nothingDesc = _D.Cla(arrayOf(), { it is Nothing? }, Nothing::class, arrayOf())
-        val starProjection = _D.Cla(arrayOf(), { true }, null, arrayOf())
+        val anyDesc = _D.Cla(arrayOf(), Any::class, arrayOf())
+        val nothingDesc = _D.Cla(arrayOf(), Nothing::class, arrayOf())
+        val starProjection = _D.Cla(arrayOf(),null, arrayOf())
 
         init {
             anyDesc.id = countId
@@ -160,25 +150,15 @@ abstract class _D(
         }
 
         fun register(
-            pureCheck: (Any?) -> Boolean,
             type: KClass<*>,
             p: Array<Cla> = arrayOf(),
-            a: Array<Int> = arrayOf(),
-            father: Cla? = null,
-            ints: Array<Cla> = arrayOf(),
-            isInterface: Boolean = false
+            a: Array<Int> = arrayOf()
         ): Cla {
-            val desc = Cla(p, pureCheck, type, a, isInterface)
+            val desc = Cla(p, type, a)
             val o = descTable[desc.hashCode()]
             if (o == null) {
                 desc.id = countId++
                 descTable[desc.hashCode()] = desc;
-                if (father != null) {
-                    desc.father = father
-                }
-                if (ints.isNotEmpty()) {
-                    desc.ints = ints
-                }
                 return desc;
             }
             return o

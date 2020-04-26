@@ -185,24 +185,11 @@ fun registerParamsDescsCreating(
                 } else {
                     DescriptorRegisterCall(
                         arguments.project,
+                        args[index].type,
                         descriptor,
                         callExpression,
                         containingDeclaration,
-                        context,
-                        {
-                            registerArrayOfResolvedCall(
-                                descriptor,
-                                callExpression.valueArguments[2].getArgumentExpression() as KtCallExpression,
-                                descriptor.computeExternalType(createHiddenTypeReference(callExpression.project, "Cla"))
-                            )
-                        },
-                        {
-                            registerArrayOfResolvedCall(
-                                descriptor,
-                                callExpression.valueArguments[3].getArgumentExpression() as KtCallExpression,
-                                context.builtIns.intType
-                            )
-                        }
+                        context
                     ).createCallDescriptor()
                 }
             }

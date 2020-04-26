@@ -50,17 +50,13 @@ class DescriptorFactoryMethodGenerator(val project: Project, val clazz: LazyClas
     var supertypeAssignment: KtBinaryExpression? = null
     var returnExpression: KtNameReferenceExpression? = null
     var ifExpression: KtIfExpression? = null
-    var interafacesAssignment: KtBinaryExpression? = null
 
     private fun createByFactory(): KtNamedFunction {
-        val typeRef = createTextTypeReferenceWithStarProjection(this.clazz.defaultType)
         val fatherDescriptor = fatherDescriptorRegisteringCode()
-        val intsDescs = interfacesDescriptorsRegisteringCode()
         val newText = """fun createTD(p: Array<kotlin.reification._D.Cla>, a: Array<Int>): kotlin.reification._D.Cla { 
-                |   val typeDesc = kotlin.reification._D.Man.register({it is $typeRef}, ${this.clazz.defaultType.constructor} :: class, p, a) 
+                |   val typeDesc = kotlin.reification._D.Man.register(${this.clazz.defaultType.constructor} :: class, p, a) 
                 |   if (typeDesc.firstReg()) {
                 |       typeDesc.father = $fatherDescriptor
-                |       typeDesc.ints = arrayOf<kotlin.reification._D.Cla>($intsDescs)
                 |   }
                 |   return typeDesc
                 |}""".trimMargin()
@@ -71,26 +67,12 @@ class DescriptorFactoryMethodGenerator(val project: Project, val clazz: LazyClas
             typeDescProperty = statements[0] as KtProperty
             ifExpression = statements[1] as KtIfExpression
             supertypeAssignment = (ifExpression!!.then as KtBlockExpression).firstStatement as KtBinaryExpression
-            interafacesAssignment = (ifExpression!!.then as KtBlockExpression).statements[1] as KtBinaryExpression
             returnExpression = PsiTreeUtil.findChildOfType(statements[2], KtNameReferenceExpression::class.java)
             registerCall = PsiTreeUtil.findChildOfType(statements[0], KtCallExpression::class.java)
             val valueArgList = PsiTreeUtil.findChildOfType(statements[0], KtValueArgumentList::class.java)
-            val pureCheckExpression = PsiTreeUtil.findChildOfType(valueArgList!!.arguments[0], KtIsExpression::class.java)!!
-            ReificationContext.register(pureCheckExpression, ReificationContext.ContextTypes.REIFICATION_CONTEXT, true)
-            parameterArrayArgumentReference = PsiTreeUtil.findChildOfType(valueArgList.arguments[2], KtNameReferenceExpression::class.java)
+            parameterArrayArgumentReference = PsiTreeUtil.findChildOfType(valueArgList!!.arguments[1], KtNameReferenceExpression::class.java)
             annotationsArrayArgumentReference =
-                PsiTreeUtil.findChildOfType(valueArgList.arguments[3], KtNameReferenceExpression::class.java)
-        }
-    }
-
-    private fun interfacesDescriptorsRegisteringCode(): String {
-        val interfaces = this.clazz.defaultType.supertypes().filter { it.isInterface() }
-        return interfaces.joinToString {
-            createTypeParameterDescriptorSource(
-                it.asTypeProjection(),
-                clazz.declaredReifiedTypeParameters,
-                true
-            )
+                PsiTreeUtil.findChildOfType(valueArgList.arguments[2], KtNameReferenceExpression::class.java)
         }
     }
 
@@ -179,6 +161,7 @@ class DescriptorFactoryMethodGenerator(val project: Project, val clazz: LazyClas
         ).also {
             registerDescVariable(it)
             DescriptorRegisterCall(project,
+                                   clazz.defaultType,
                                    clazz,
                                    registerCall!!,
                                    it,
@@ -200,7 +183,6 @@ class DescriptorFactoryMethodGenerator(val project: Project, val clazz: LazyClas
             ReificationContext.register(declaration, ReificationContext.ContextTypes.DESC, desc)
             // It's important to register function desc before register supertype because of cycle reference
             registerSupertypeSetting(it)
-            registerIntsSetting(it)
             registerVarRefExpression()
         }
     }
@@ -319,40 +301,5 @@ class DescriptorFactoryMethodGenerator(val project: Project, val clazz: LazyClas
         )
         resolvedCall.markCallAsCompleted()
         ReificationContext.register(nameReferenceExpression, ReificationContext.ContextTypes.RESOLVED_CALL, resolvedCall)
-    }
-
-    private fun registerIntsSetting(containingDesc: SimpleFunctionDescriptorImpl) {
-        val interfacesExpression = interafacesAssignment!!.right!! as KtCallExpression
-        registerArrayOfResolvedCall(
-            clazz,
-            interfacesExpression,
-            clazz.computeExternalType(createHiddenTypeReference(interfacesExpression.project, "Cla"))
-        )
-        interfacesExpression.valueArguments.forEach {
-            val callExpression = (it.getArgumentExpression() as KtDotQualifiedExpression).selectorExpression as KtCallExpression
-            DescriptorRegisterCall(
-                interfacesExpression.project,
-                clazz,
-                callExpression,
-                containingDesc,
-                context,
-                {
-                    registerArrayOfResolvedCall(
-                        clazz,
-                        callExpression.valueArguments[2].getArgumentExpression() as KtCallExpression,
-                        clazz.computeExternalType(createHiddenTypeReference(interfacesExpression.project, "Cla"))
-                    )
-                },
-                {
-                    registerArrayOfResolvedCall(
-                        clazz,
-                        callExpression.valueArguments[3].getArgumentExpression() as KtCallExpression,
-                        context.builtIns.intType
-                    )
-                }).createCallDescriptor()
-        }
-        val intsRef = interafacesAssignment!!.left as KtDotQualifiedExpression
-        registerVarRefExpression(intsRef.receiverExpression)
-        registerIntsCall(intsRef, clazz, supertypeAssignment!!.project)
     }
 }

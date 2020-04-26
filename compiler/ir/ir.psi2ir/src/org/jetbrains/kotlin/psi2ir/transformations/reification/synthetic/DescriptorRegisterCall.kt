@@ -46,12 +46,13 @@ import sun.java2d.pipe.SpanShapeRenderer
 
 class DescriptorRegisterCall(
     val project: Project,
+    val type: KotlinType,
     val clazz: LazyClassDescriptor,
     private val registerCall: KtCallExpression,
     val containingDeclaration: DeclarationDescriptor,
     val context: GeneratorContext,
-    private val registerParamsArrayCall: (() -> Unit),
-    private val registerAnnotationsArrayCall: (() -> Unit)
+    private val registerParamsArrayCall: (() -> Unit)? = null,
+    private val registerAnnotationsArrayCall: (() -> Unit)? = null
 ) {
 
     fun createCallDescriptor() {
@@ -59,141 +60,19 @@ class DescriptorRegisterCall(
         registerResolvedCallDescriptionForFactoryMethod(
             (registerCall.parent as KtDotQualifiedExpression).operationTokenNode
         )
-        // 1 argument pureCheck
-        val lambdaExpression = PsiTreeUtil.findChildOfType(registerCall.valueArguments[0], KtLambdaExpression::class.java)
-        val isExpression = PsiTreeUtil.findChildOfType(lambdaExpression, KtIsExpression::class.java)
-        ReificationContext.register(
-            lambdaExpression!!.bodyExpression!!.statements.last(),
-            ReificationContext.ContextTypes.REIFICATION_CONTEXT,
-            true
-        )
-        val lambdaReturnType = clazz.computeExternalType(createHiddenTypeReference(project, "Man"))
-            .memberScope.findSingleFunction(Name.identifier("register")).valueParameters[0].type
-        ReificationContext.register(lambdaExpression, ReificationContext.ContextTypes.TYPE, lambdaReturnType)
-        val typeRef = clazz.computeExternalType(isExpression!!.typeReference)
-        ReificationContext.register(isExpression, ReificationContext.ContextTypes.TYPE, typeRef)
 
-        val lambdaSource = lambdaExpression.functionLiteral
-        val lambdaDescriptor = AnonymousFunctionDescriptor(
-            containingDeclaration,
-            Annotations.EMPTY,
-            CallableMemberDescriptor.Kind.DECLARATION,
-            KotlinSourceElement(lambdaSource as KtElement),
-            false
-        )
-
-        clazz.initializeLambdaDescriptor(
-            containingDeclaration,
-            lambdaSource,
-            lambdaDescriptor,
-            lambdaReturnType,
-            DelegatingBindingTrace(BindingContext.EMPTY, "")
-        )
-        lambdaDescriptor.setReturnType(lambdaReturnType.arguments.last().type)
-        ReificationContext.register(lambdaSource, ReificationContext.ContextTypes.DESC, lambdaDescriptor)
-        registerResolvedCallForParameter(
-            isExpression.leftHandSide as KtNameReferenceExpression,
-            lambdaDescriptor.valueParameters[0]
-        )
-        //val param =
-        //    if (containingDeclaration is SimpleFunctionDescriptor && containingDeclaration.name.identifier == "createTD") containingDeclaration.valueParameters.first() else null
-        //registerFatherDescriptor(param)
-        //2 argument KClass
+        //1 argument KClass
         registerReflectionReference(
-            PsiTreeUtil.findChildOfType(registerCall.valueArguments[1], KtClassLiteralExpression::class.java)!!,
-            typeRef
+            PsiTreeUtil.findChildOfType(registerCall.valueArguments[0], KtClassLiteralExpression::class.java)!!,
+            type
         )
-        //3 argument parameters array
-        registerParamsArrayCall.invoke()
+        //2 argument parameters array (optional)
+        registerParamsArrayCall?.invoke()
 
-        //4 argument annotations array
-        registerAnnotationsArrayCall.invoke()
-
-        //5 argument father desc for non-reified types
-        if (registerCall.valueArguments.size > 4) {
-            registerFatherDescForNonReifiedType()
-            registerImplementedInterfacesForNonReifiedTypes()
-            registerIsInterfaceFlag()
-        }
+        //3 argument annotations array (optional)
+        registerAnnotationsArrayCall?.invoke()
     }
 
-    private fun registerIsInterfaceFlag() {
-        val argumentExpression = registerCall.valueArguments[6].getArgumentExpression() as KtConstantExpression
-        val params = CompileTimeConstant.Parameters(true, true, false, false, false, false, false)
-        val constant = BooleanValue(argumentExpression.text == "true")
-        ReificationContext.register(
-            argumentExpression,
-            ReificationContext.ContextTypes.CONSTANT,
-            TypedCompileTimeConstant(constant, context.moduleDescriptor, params)
-        )
-        ReificationContext.register(
-            argumentExpression,
-            ReificationContext.ContextTypes.TYPE,
-            this.context.builtIns.booleanType
-        )
-    }
-
-    private fun registerFatherDescForNonReifiedType() {
-        val argumentExpression = registerCall.valueArguments[4].getArgumentExpression() as KtDotQualifiedExpression
-        val callExpression = argumentExpression.selectorExpression as? KtCallExpression
-        if (callExpression != null) {
-            DescriptorRegisterCall(
-                registerCall.project,
-                clazz,
-                callExpression,
-                containingDeclaration,
-                context,
-                {
-                    registerArrayOfResolvedCall(
-                        clazz,
-                        callExpression.valueArguments[2].getArgumentExpression() as KtCallExpression,
-                        clazz.computeExternalType(createHiddenTypeReference(callExpression.project, "Cla"))
-                    )
-                },
-                {
-                    registerArrayOfResolvedCall(
-                        clazz,
-                        callExpression.valueArguments[3].getArgumentExpression() as KtCallExpression,
-                        context.builtIns.intType
-                    )
-                }
-            ).createCallDescriptor()
-        } else {
-            registerAnyDescCall(argumentExpression)
-        }
-    }
-
-    private fun registerImplementedInterfacesForNonReifiedTypes() {
-        val interfacesExpression = registerCall.valueArguments[5].getArgumentExpression() as KtCallExpression
-        registerArrayOfResolvedCall(
-            clazz,
-            interfacesExpression,
-            clazz.computeExternalType(createHiddenTypeReference(interfacesExpression.project, "Cla"))
-        )
-        interfacesExpression.valueArguments.forEach {
-            val callExpression = (it.getArgumentExpression() as KtDotQualifiedExpression).selectorExpression as KtCallExpression
-            DescriptorRegisterCall(
-                interfacesExpression.project,
-                clazz,
-                callExpression,
-                containingDeclaration,
-                context,
-                {
-                    registerArrayOfResolvedCall(
-                        clazz,
-                        callExpression.valueArguments[2].getArgumentExpression() as KtCallExpression,
-                        clazz.computeExternalType(createHiddenTypeReference(interfacesExpression.project, "Cla"))
-                    )
-                },
-                {
-                    registerArrayOfResolvedCall(
-                        clazz,
-                        callExpression.valueArguments[3].getArgumentExpression() as KtCallExpression,
-                        context.builtIns.intType
-                    )
-                }).createCallDescriptor()
-        }
-    }
 
     private fun registerReflectionReference(expression: KtClassLiteralExpression, type: KotlinType) {
         val ktArgument = expression.receiverExpression!!
@@ -231,43 +110,5 @@ class DescriptorRegisterCall(
         ValueArgumentsToParametersMapper.mapValueArgumentsToParameters(call, TracingStrategy.EMPTY, resolvedCall)
         ReificationContext.register(registerCall, ReificationContext.ContextTypes.RESOLVED_CALL, resolvedCall)
         return resolvedCall
-    }
-
-    private fun registerAnyDescCall(argExpression: KtDotQualifiedExpression) {
-        val nameReferenceExpression = argExpression.selectorExpression as KtNameReferenceExpression
-        val manDescType = clazz.computeExternalType(createHiddenTypeReference(nameReferenceExpression.project, "Man"))
-        val manDesc = manDescType.constructor.declarationDescriptor as ClassDescriptor
-        val explicitReceiver = ClassQualifier(
-            (argExpression.receiverExpression as KtDotQualifiedExpression).selectorExpression as KtNameReferenceExpression,
-            manDesc
-        )
-        val call =
-            CallMaker.makeCall(
-                nameReferenceExpression,
-                explicitReceiver,
-                argExpression.operationTokenNode,
-                nameReferenceExpression,
-                emptyList()
-            )
-
-        ReificationContext.register(
-            (argExpression.receiverExpression as KtDotQualifiedExpression).selectorExpression!!,
-            ReificationContext.ContextTypes.DESC,
-            manDesc
-        )
-        val candidate = manDescType.memberScope.getContributedDescriptors().first { it.name.identifier == "anyDesc" }
-        val resolvedCall = ResolvedCallImpl(
-            call,
-            candidate as CallableDescriptor,
-            ClassValueReceiver(explicitReceiver, manDescType),
-            null,
-            ExplicitReceiverKind.DISPATCH_RECEIVER,
-            null,
-            DelegatingBindingTrace(BindingContext.EMPTY, ""),
-            TracingStrategy.EMPTY,
-            DataFlowInfoForArgumentsImpl(DataFlowInfo.EMPTY, call)
-        )
-        ValueArgumentsToParametersMapper.mapValueArgumentsToParameters(call, TracingStrategy.EMPTY, resolvedCall)
-        ReificationContext.register(nameReferenceExpression, ReificationContext.ContextTypes.RESOLVED_CALL, resolvedCall)
     }
 }

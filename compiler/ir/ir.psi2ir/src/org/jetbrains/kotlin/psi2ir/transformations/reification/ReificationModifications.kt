@@ -119,29 +119,11 @@ fun mapVariance(compilerVariance: Variance): _D.Variance {
     }
 }
 
-fun createTextTypeReferenceWithStarProjection(type: SimpleType, nullable: Boolean = true): String {
-    return buildString {
-        append(type.constructor)
-        if (type.arguments.isNotEmpty()) type.arguments.joinTo(this, separator = ", ", prefix = "<", postfix = ">") { "*" }
-        if (nullable) append("?")
-    }
-}
 
 fun createSimpleTypeRegistrationSource(type: KotlinType): String {
     return buildString {
-        val superType =
-            type.getImmediateSuperclassNotAny()?.let { createSimpleTypeRegistrationSource(it) } ?: "kotlin.reification._D.Man.anyDesc"
-        val implementedInterfaces = type.supertypes().filter { it.isInterface() }.joinToString {
-            createTypeParameterDescriptorSource(
-                it.asTypeProjection(),
-                emptyList(),
-                false
-            )
-        }
-        val isInterface = if (type.isInterface()) "true" else "false"
-        val typeRef = createTextTypeReferenceWithStarProjection(type.asSimpleType())
         append(
-            "kotlin.reification._D.Man.register({it is $typeRef}, ${type.constructor} :: class, arrayOf<kotlin.reification._D.Cla>(), arrayOf<Int>(), $superType, arrayOf<kotlin.reification._D.Cla>($implementedInterfaces), $isInterface)"
+            "kotlin.reification._D.Man.register(${type.constructor} :: class)"
         )
     }
 }
@@ -429,48 +411,4 @@ fun findOriginalDescriptor(args: List<TypeProjection>): LazyClassDescriptor? {
         }
     }
     return null;
-}
-
-fun registerIntsCall(intsCallExpression: KtDotQualifiedExpression, clazz: LazyClassDescriptor, project: Project) {
-    val reificationLibReference = clazz.computeExternalType(createHiddenTypeReference(project))
-    val candidate =
-        reificationLibReference.memberScope.getContributedDescriptors(DescriptorKindFilter.ALL).first { x -> x.name.identifier == "ints" } as DeserializedPropertyDescriptor
-    val returnType = candidate.returnType
-    val explicitReceiver = ExpressionReceiver.create(
-        intsCallExpression.receiverExpression as KtNameReferenceExpression,
-        returnType,
-        BindingContext.EMPTY
-    )
-    val call = CallMaker.makeCall(
-        intsCallExpression.receiverExpression as KtNameReferenceExpression,
-        explicitReceiver,
-        intsCallExpression.operationTokenNode,
-        intsCallExpression.selectorExpression,
-        emptyList(),
-        Call.CallType.DEFAULT,
-        false
-    )
-
-    val intsResolvedCall = ResolvedCallImpl(
-        call,
-        candidate,
-        explicitReceiver,
-        null,
-        ExplicitReceiverKind.DISPATCH_RECEIVER,
-        null,
-        DelegatingBindingTrace(BindingContext.EMPTY, ""),
-        TracingStrategy.EMPTY,
-        DataFlowInfoForArgumentsImpl(DataFlowInfo.EMPTY, call)
-    )
-    ReificationContext.register(
-        intsCallExpression.selectorExpression!!,
-        ReificationContext.ContextTypes.RESOLVED_CALL,
-        intsResolvedCall
-    )
-    ReificationContext.register(
-        intsCallExpression,
-        ReificationContext.ContextTypes.TYPE,
-        candidate.returnType
-    )
-    intsResolvedCall.markCallAsCompleted()
 }
