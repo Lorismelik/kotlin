@@ -282,8 +282,7 @@ class DescriptorFactoryMethodGenerator(val project: Project, val clazz: LazyClas
                 context,
                 fatherCreatingCall as KtDotQualifiedExpression,
                 clazz,
-                containingDesc.valueParameters[0],
-                containingDesc.valueParameters[1]
+                containingDesc.valueParameters[0]
             )
         }
     }
