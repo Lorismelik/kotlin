@@ -31,12 +31,11 @@ import org.jetbrains.kotlin.serialization.deserialization.descriptors.Deserializ
 import org.jetbrains.kotlin.serialization.deserialization.descriptors.DeserializedSimpleFunctionDescriptor
 import org.jetbrains.kotlin.types.*
 import org.jetbrains.kotlin.types.typeUtil.*
-import kotlin.reification._D
 
 fun createHiddenTypeReference(project: Project, typeName: String? = null): KtTypeReference {
     val type = if (typeName != null) {
-        "kotlin.reification._D.$typeName"
-    } else "kotlin.reification._D"
+        "kotlin.reflect._D.$typeName"
+    } else "kotlin.reflect._D"
     return KtPsiFactory(project, false).createTypeIfPossible(type)!!
 }
 
@@ -48,7 +47,7 @@ fun createTypeParameterDescriptorSource(
     return buildString {
         append(
             when {
-                arg.isStarProjection -> "kotlin.reification._D.Man.starProjection"
+                arg.isStarProjection -> "kotlin.reflect._D.Man.starProjection"
                 arg.type.isTypeParameter() -> {
                     val index =
                         callerTypeParams.indexOfFirst { param -> param.defaultType.hashCode() == arg.type.hashCode() }
@@ -84,30 +83,23 @@ fun createCodeForDescriptorFactoryMethodCall(
     parametersDescriptors: () -> String,
     descriptor: ClassDescriptor
 ): String {
-    return "${descriptor.name.identifier}.createTD(arrayOf<kotlin.reification._D.Cla>(${parametersDescriptors.invoke()}))"
+    return "${descriptor.name.identifier}.createTD(arrayOf<kotlin.reflect._D.Cla>(${parametersDescriptors.invoke()}))"
 }
 
 fun createCodeForAnnotations(
     descriptor: ClassDescriptor
 ): String {
     return descriptor.declaredReifiedTypeParameters.map { arg ->
-        mapVariance(arg.variance).ordinal
+        arg.variance.ordinal
     }.joinToString()
 }
 
-fun mapVariance(compilerVariance: Variance): _D.Variance {
-    return when (compilerVariance) {
-        Variance.OUT_VARIANCE -> _D.Variance.OUT
-        Variance.IN_VARIANCE -> _D.Variance.IN
-        Variance.INVARIANT -> _D.Variance.INVARIANT
-    }
-}
 
 
 fun createSimpleTypeRegistrationSource(type: KotlinType): String {
     return buildString {
         append(
-            "kotlin.reification._D.Man.register(${type.constructor} :: class)"
+            "kotlin.reflect._D.Man.register(${type.constructor} :: class)"
         )
     }
 }

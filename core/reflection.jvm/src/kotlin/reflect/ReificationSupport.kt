@@ -1,10 +1,18 @@
 /*
+ * Copyright 2010-2020 JetBrains s.r.o. and Kotlin Programming Language contributors.
+ * Use of this source code is governed by the Apache 2.0 license that can be found in the license/LICENSE.txt file.
+ */
+
+package kotlin.reflect
+
+/*
  * Copyright 2010-2019 JetBrains s.r.o. and Kotlin Programming Language contributors.
  * Use of this source code is governed by the Apache 2.0 license that can be found in the license/LICENSE.txt file.
  */
-package kotlin.reification
 
 import kotlin.reflect.KClass
+import kotlin.reflect.full.isSubclassOf
+import kotlin.reflect.full.isSuperclassOf
 
 abstract class _D(
     val p: Array<Cla>?,
@@ -34,10 +42,26 @@ abstract class _D(
     }
 
     fun isInstance(o: Any?): Boolean {
+        // This type is Any or That is Nothing that isInstance is always true
         if (this == Man.anyDesc || o == Man.nothingDesc) return true
         var oDesc: Cla? = null
+        // if That type is Cla we came from isInstanceForFreshTypeVars method
+        if (o is Cla) {
+            if (o.p == null && o.father == null) {
+                // if this type is reified generic (father is not null or have parameters) isInstance is always false
+                if (this.p != null || this.father != null) {
+                    println("That type is not parametric but this type is parametric")
+                    return false
+                }
+                println("Check for SuperClass")
+                return this.type == o.type || this.type!!.isSuperclassOf(o.type!!)
+            } else {
+                oDesc = o
+            }
+        }
+        // if that type is Parametric we need to walk through inheritance chain and find for type that equals This type.
+        // After that we need to compare their parameters based on their variance
         if (o is Parametric) oDesc = o.getD()
-        if (o is Cla) oDesc = o
         if (oDesc != null) {
             while (oDesc!!.type != this.type && oDesc.father != null) {
                 oDesc = oDesc.father!!
@@ -60,13 +84,17 @@ abstract class _D(
             println("Types not equal ${oDesc.type} is ${this.type}")
             return false
         } else {
+            // If that type is not Parametric then there is only one right case, that This type is not reified generic too
             println("Pure check $o is ${this.type}")
+            if (this.p != null || this.father != null) return false
             return type!!.isInstance(o)
         }
     }
 
     protected fun isInstanceForFreshTypeVars(o: Cla, annotations: Array<Int>, checkBounds: Boolean = true): Boolean {
+        // if this type is star projection then isInstanceForFreshTypeVars is always true
         if (this == Man.starProjection) return true
+        // checkBounds is a marker for invariant check. If it is false we compare types for strict equality
         if (!checkBounds) {
             if (this.type != o.type || annotations[1] != annotations[0]) {
                 println("Types not equal or annotations ${o.type} is ${this.type} with annotations ${annotations[1]} and ${annotations[0]}")
@@ -85,6 +113,7 @@ abstract class _D(
             }
             return true
         } else {
+            // if checkBounds is true then we split projection for 2 bounds and compare them
             val thisBound = createBounds(annotations[0], this as Cla)
             val thatBound = createBounds(annotations[1], o)
             if (!thatBound.first.isInstance(thisBound.first) || !thisBound.second.isInstance(thatBound.second)) {
@@ -100,7 +129,6 @@ abstract class _D(
             Variance.INVARIANT.ordinal -> Pair(cla, cla)
             Variance.OUT.ordinal -> Pair(Man.nothingDesc, cla)
             Variance.IN.ordinal -> Pair(cla, Man.anyDesc)
-            Variance.BIVARIANT.ordinal -> Pair(Man.nothingDesc, Man.anyDesc)
             else -> throw Exception("Illegal annotation for reified parameter")
         }
     }
@@ -141,7 +169,7 @@ abstract class _D(
         var countId = 1
         val anyDesc = _D.Cla(arrayOf(), Any::class)
         val nothingDesc = _D.Cla(arrayOf(), Nothing::class)
-        val starProjection = _D.Cla(arrayOf(),null)
+        val starProjection = _D.Cla(arrayOf(), null)
 
         init {
             anyDesc.id = countId
@@ -171,8 +199,7 @@ abstract class _D(
 
     enum class Variance() {
         INVARIANT,
-        OUT,
         IN,
-        BIVARIANT
+        OUT
     }
 }

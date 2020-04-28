@@ -33,7 +33,7 @@ class DescriptorGetter(
 
     fun createDescriptorGetter(): KtNamedFunction {
         return KtPsiFactory(project, false).createFunction(
-            "fun getD(): kotlin.reification._D.Cla { return desc }"
+            "fun getD(): kotlin.reflect._D.Cla { return desc }"
         ).apply {
             registerDescriptorGetter(this)
         }

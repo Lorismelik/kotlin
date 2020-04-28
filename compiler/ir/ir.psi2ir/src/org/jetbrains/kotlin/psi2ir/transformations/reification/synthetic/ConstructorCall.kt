@@ -74,8 +74,7 @@ fun registerDescriptorCreatingCall(
     //ClassName.createTD(...)
     expression: KtDotQualifiedExpression,
     originalDescriptor: LazyClassDescriptor? = null,
-    originalDescriptorParamsArray: ValueParameterDescriptor? = null,
-    originalDescriptorAnnotationArray: ValueParameterDescriptor? = null
+    originalDescriptorParamsArray: ValueParameterDescriptor? = null
 ) {
     val arguments =
         ((expression.selectorExpression!! as KtCallExpression).valueArguments[0].getArgumentExpression() as KtCallExpression).valueArgumentList
@@ -86,8 +85,7 @@ fun registerDescriptorCreatingCall(
         args,
         containingDeclaration,
         originalDescriptor,
-        originalDescriptorParamsArray,
-        originalDescriptorAnnotationArray
+        originalDescriptorParamsArray
     )
     val callExpression = expression.selectorExpression as KtCallExpression
     val classReceiverReferenceExpression = expression.receiverExpression as KtNameReferenceExpression
@@ -141,8 +139,7 @@ fun registerParamsDescsCreating(
     args: List<TypeProjection>,
     containingDeclaration: DeclarationDescriptor,
     originalDescriptor: LazyClassDescriptor? = null,
-    originalDescriptorParamsArray: ValueParameterDescriptor? = null,
-    originalDescriptorAnnotationArray: ValueParameterDescriptor? = null
+    originalDescriptorParamsArray: ValueParameterDescriptor? = null
 ) {
     arguments?.arguments?.forEachIndexed { index, ktValueArg ->
         val argExpression = ktValueArg.getArgumentExpression()!!
@@ -163,8 +160,7 @@ fun registerParamsDescsCreating(
                         context,
                         argExpression,
                         originalDescriptor,
-                        originalDescriptorParamsArray,
-                        originalDescriptorAnnotationArray
+                        originalDescriptorParamsArray
                     )
                     // Try to create desc for simple type
                 } else {
