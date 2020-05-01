@@ -248,14 +248,7 @@ class DescriptorFactoryMethodGenerator(val project: Project, val clazz: LazyClas
     private fun registerFatherDescriptor(fatherCreatingCall: KtExpression, containingDesc: SimpleFunctionDescriptorImpl) {
         // father is null
         if (fatherCreatingCall is KtConstantExpression) {
-            val params = CompileTimeConstant.Parameters(false, false, false, false, false, false, false)
-            val nullConstant = TypedCompileTimeConstant(NullValue(), context.moduleDescriptor, params)
-            ReificationContext.register(fatherCreatingCall, ReificationContext.ContextTypes.CONSTANT, nullConstant)
-            ReificationContext.register(
-                fatherCreatingCall,
-                ReificationContext.ContextTypes.TYPE,
-                context.builtIns.nullableNothingType
-            )
+            registerNull(context, fatherCreatingCall)
             // father is not null
         } else {
             val father = clazz.getSuperClassOrAny() as LazyClassDescriptor

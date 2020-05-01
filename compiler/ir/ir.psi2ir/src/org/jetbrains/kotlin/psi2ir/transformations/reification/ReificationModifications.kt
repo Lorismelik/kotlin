@@ -7,6 +7,7 @@ import org.jetbrains.kotlin.incremental.KotlinLookupLocation
 import org.jetbrains.kotlin.name.Name
 import org.jetbrains.kotlin.psi.*
 import org.jetbrains.kotlin.psi2ir.findSingleFunction
+import org.jetbrains.kotlin.psi2ir.generators.GeneratorContext
 import org.jetbrains.kotlin.psi2ir.transformations.reification.synthetic.createTypeParametersDescriptorsSource
 import org.jetbrains.kotlin.resolve.BindingContext
 import org.jetbrains.kotlin.resolve.DelegatingBindingTrace
@@ -19,6 +20,8 @@ import org.jetbrains.kotlin.resolve.calls.tasks.TracingStrategy
 import org.jetbrains.kotlin.resolve.calls.util.CallMaker
 import org.jetbrains.kotlin.resolve.constants.CompileTimeConstant
 import org.jetbrains.kotlin.resolve.constants.IntegerValueTypeConstant
+import org.jetbrains.kotlin.resolve.constants.NullValue
+import org.jetbrains.kotlin.resolve.constants.TypedCompileTimeConstant
 import org.jetbrains.kotlin.resolve.descriptorUtil.getSuperClassOrAny
 import org.jetbrains.kotlin.resolve.lazy.descriptors.LazyClassDescriptor
 import org.jetbrains.kotlin.resolve.reification.ReificationContext
@@ -107,20 +110,36 @@ fun createTextTypeReferenceWithStarProjection(type: SimpleType, nullable: Boolea
 fun createSimpleTypeRegistrationSource(type: KotlinType): String {
     return buildString {
         val superType =
-            type.getImmediateSuperclassNotAny()?.let { createSimpleTypeRegistrationSource(it) } ?: "kotlin.reification._D.Man.anyDesc"
-        val implementedInterfaces = type.supertypes().filter { it.isInterface() }.joinToString {
-            createTypeParameterDescriptorSource(
-                it.asTypeProjection(),
-                emptyList(),
-                false
-            )
+            type.getImmediateSuperclassNotAny()?.let { createSimpleTypeRegistrationSource(it) } ?: "null"
+        val implementedInterfaces = if (type.supertypes().any { it.isInterface() }) {
+            type.supertypes().filter { it.isInterface() }
+                .joinToString(prefix = "arrayOf<kotlin.reification._D.Cla>(", postfix = ")", transform = {
+                    createTypeParameterDescriptorSource(
+                        it.asTypeProjection(),
+                        emptyList(),
+                        false
+                    )
+                })
+        } else {
+            "null"
         }
         val isInterface = if (type.isInterface()) "true" else "false"
         val typeRef = createTextTypeReferenceWithStarProjection(type.asSimpleType())
         append(
-            "kotlin.reification._D.Man.register({it is $typeRef}, ${type.constructor} :: class, arrayOf<kotlin.reification._D.Cla>(), $superType, arrayOf<kotlin.reification._D.Cla>($implementedInterfaces), $isInterface)"
+            "kotlin.reification._D.Man.register({it is $typeRef}, ${type.constructor} :: class, null, $superType, $implementedInterfaces, $isInterface)"
         )
     }
+}
+
+fun registerNull(context: GeneratorContext, nullExpression: KtExpression) {
+    val params = CompileTimeConstant.Parameters(false, false, false, false, false, false, false)
+    val nullConstant = TypedCompileTimeConstant(NullValue(), context.moduleDescriptor, params)
+    ReificationContext.register(nullExpression, ReificationContext.ContextTypes.CONSTANT, nullConstant)
+    ReificationContext.register(
+        nullExpression,
+        ReificationContext.ContextTypes.TYPE,
+        context.builtIns.nullableNothingType
+    )
 }
 
 //desc

@@ -19,6 +19,7 @@ import org.jetbrains.kotlin.psi.*
 import org.jetbrains.kotlin.psi2ir.findSingleFunction
 import org.jetbrains.kotlin.psi2ir.generators.GeneratorContext
 import org.jetbrains.kotlin.psi2ir.transformations.reification.createHiddenTypeReference
+import org.jetbrains.kotlin.psi2ir.transformations.reification.registerNull
 import org.jetbrains.kotlin.psi2ir.transformations.reification.registerResolvedCallForParameter
 import org.jetbrains.kotlin.resolve.BindingContext
 import org.jetbrains.kotlin.resolve.DelegatingBindingTrace
@@ -134,53 +135,67 @@ class DescriptorRegisterCall(
     }
 
     private fun registerFatherDescForNonReifiedType() {
-        val argumentExpression = registerCall.valueArguments[3].getArgumentExpression() as KtDotQualifiedExpression
-        val callExpression = argumentExpression.selectorExpression as? KtCallExpression
-        val superType = typeRef.getImmediateSuperclassNotAny() ?: context.builtIns.anyType
-        if (callExpression != null) {
-            DescriptorRegisterCall(
-                registerCall.project,
-                clazz,
-                superType,
-                callExpression,
-                containingDeclaration,
-                context
-            ) {
-                registerArrayOfResolvedCall(
+        val argumentExpression = registerCall.valueArguments[3].getArgumentExpression()
+        if (argumentExpression is KtDotQualifiedExpression) {
+            val callExpression = argumentExpression.selectorExpression
+            val superType = typeRef.getImmediateSuperclassNotAny() ?: context.builtIns.anyType
+            if (callExpression is KtCallExpression) {
+                val registerParameterExecutor = if (callExpression.valueArguments[2].getArgumentExpression() is KtCallExpression) {
+                    {
+                        registerArrayOfResolvedCall(
+                            clazz,
+                            callExpression.valueArguments[2].getArgumentExpression() as KtCallExpression,
+                            clazz.computeExternalType(createHiddenTypeReference(callExpression.project, "Cla"))
+                        )
+                    }
+                } else {
+                    { registerNull(context, callExpression.valueArguments[2].getArgumentExpression()!!) }
+                }
+                DescriptorRegisterCall(
+                    registerCall.project,
                     clazz,
-                    callExpression.valueArguments[2].getArgumentExpression() as KtCallExpression,
-                    clazz.computeExternalType(createHiddenTypeReference(callExpression.project, "Cla"))
-                )
-            }.createCallDescriptor()
+                    superType,
+                    callExpression,
+                    containingDeclaration,
+                    context
+                ) {
+                    registerParameterExecutor.invoke()
+                }.createCallDescriptor()
+            } else {
+                registerAnyDescCall(argumentExpression)
+            }
         } else {
-            registerAnyDescCall(argumentExpression)
+            registerNull(context, argumentExpression!!)
         }
     }
 
     private fun registerImplementedInterfacesForNonReifiedTypes() {
-        val interfacesExpression = registerCall.valueArguments[4].getArgumentExpression() as KtCallExpression
-        registerArrayOfResolvedCall(
-            clazz,
-            interfacesExpression,
-            clazz.computeExternalType(createHiddenTypeReference(interfacesExpression.project, "Cla"))
-        )
-        val interfaces = this.typeRef.supertypes().filter { it.isInterface() }
-        interfacesExpression.valueArguments.forEachIndexed { index, arg ->
-            val callExpression = (arg.getArgumentExpression() as KtDotQualifiedExpression).selectorExpression as KtCallExpression
-            DescriptorRegisterCall(
-                interfacesExpression.project,
+        val interfacesExpression = registerCall.valueArguments[4].getArgumentExpression()
+        if (interfacesExpression is KtCallExpression) {
+            registerArrayOfResolvedCall(
                 clazz,
-                interfaces[index],
-                callExpression,
-                containingDeclaration,
-                context
-            ) {
-                registerArrayOfResolvedCall(
+                interfacesExpression,
+                clazz.computeExternalType(createHiddenTypeReference(interfacesExpression.project, "Cla"))
+            )
+            val interfaces = this.typeRef.supertypes().filter { it.isInterface() }
+            interfacesExpression.valueArguments.forEachIndexed { index, arg ->
+                val callExpression = (arg.getArgumentExpression() as KtDotQualifiedExpression).selectorExpression as KtCallExpression
+                DescriptorRegisterCall(
+                    interfacesExpression.project,
                     clazz,
-                    callExpression.valueArguments[2].getArgumentExpression() as KtCallExpression,
-                    clazz.computeExternalType(createHiddenTypeReference(interfacesExpression.project, "Cla"))
-                )
-            }.createCallDescriptor()
+                    interfaces[index],
+                    callExpression,
+                    containingDeclaration,
+                    context
+                ) {
+                    registerNull(
+                        context,
+                        callExpression.valueArguments[2].getArgumentExpression()!!
+                    )
+                }.createCallDescriptor()
+            }
+        } else {
+            registerNull(context, interfacesExpression!!)
         }
     }
 

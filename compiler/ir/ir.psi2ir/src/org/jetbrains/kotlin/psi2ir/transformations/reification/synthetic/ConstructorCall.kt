@@ -172,11 +172,7 @@ fun registerParamsDescsCreating(
                         containingDeclaration,
                         context
                     ) {
-                        registerArrayOfResolvedCall(
-                            descriptor,
-                            callExpression.valueArguments[2].getArgumentExpression() as KtCallExpression,
-                            descriptor.computeExternalType(createHiddenTypeReference(callExpression.project, "Cla"))
-                        )
+                        registerNull(context, callExpression.valueArguments[2].getArgumentExpression()!!)
                     }.createCallDescriptor()
                 }
             }
