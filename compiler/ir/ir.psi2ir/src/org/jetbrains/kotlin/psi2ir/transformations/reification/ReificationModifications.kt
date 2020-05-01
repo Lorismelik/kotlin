@@ -65,12 +65,6 @@ fun createTypeParameterDescriptorSource(
                                 ), callerTypeParams, fromFactory
                             )
                         },
-                        {
-                            createCodeForAnnotations(
-                                filterArgumentsForReifiedTypeParams(arg.type.arguments, classDesc.declaredTypeParameters),
-                                classDesc, callerTypeParams, fromFactory
-                            )
-                        },
                         classDesc
                     )
                 }
@@ -88,36 +82,19 @@ fun filterArgumentsForReifiedTypeParams(args: List<TypeProjection>, params: List
 
 fun createCodeForDescriptorFactoryMethodCall(
     parametersDescriptors: () -> String,
-    annotations: () -> String,
     descriptor: ClassDescriptor
 ): String {
-    return "${descriptor.name.identifier}.createTD(arrayOf<kotlin.reification._D.Cla>(${parametersDescriptors.invoke()}), arrayOf<Int>(${annotations.invoke()}))"
+    return "${descriptor.name.identifier}.createTD(arrayOf<kotlin.reification._D.Cla>(${parametersDescriptors.invoke()}))"
 }
 
 fun createCodeForAnnotations(
-    args: List<TypeProjection>,
-    descriptor: ClassDescriptor,
-    callerTypeParams: List<TypeParameterDescriptor> = emptyList(),
-    fromFactory: Boolean = false
+    descriptor: ClassDescriptor
 ): String {
-    return args.mapIndexed<TypeProjection, Any> { index, arg ->
-        if (arg.type.isTypeParameter()) {
-            val annotationIndex =
-                callerTypeParams.indexOfFirst { param -> param.defaultType.hashCode() == arg.type.hashCode() }
-            return@mapIndexed if (fromFactory) "a[$annotationIndex]" else "desc.annotations[$annotationIndex]"
-        }
-        if (arg.isStarProjection) return@mapIndexed _D.Variance.BIVARIANT.ordinal
-        return@mapIndexed mapVariance(descriptor.declaredReifiedTypeParameters[index].variance).ordinal
+    return descriptor.declaredReifiedTypeParameters.map { arg ->
+        arg.variance.ordinal
     }.joinToString()
 }
 
-fun mapVariance(compilerVariance: Variance): _D.Variance {
-    return when (compilerVariance) {
-        Variance.OUT_VARIANCE -> _D.Variance.OUT
-        Variance.IN_VARIANCE -> _D.Variance.IN
-        Variance.INVARIANT -> _D.Variance.INVARIANT
-    }
-}
 
 fun createTextTypeReferenceWithStarProjection(type: SimpleType, nullable: Boolean = true): String {
     return buildString {
@@ -141,7 +118,7 @@ fun createSimpleTypeRegistrationSource(type: KotlinType): String {
         val isInterface = if (type.isInterface()) "true" else "false"
         val typeRef = createTextTypeReferenceWithStarProjection(type.asSimpleType())
         append(
-            "kotlin.reification._D.Man.register({it is $typeRef}, ${type.constructor} :: class, arrayOf<kotlin.reification._D.Cla>(), arrayOf<Int>(), $superType, arrayOf<kotlin.reification._D.Cla>($implementedInterfaces), $isInterface)"
+            "kotlin.reification._D.Man.register({it is $typeRef}, ${type.constructor} :: class, arrayOf<kotlin.reification._D.Cla>(), $superType, arrayOf<kotlin.reification._D.Cla>($implementedInterfaces), $isInterface)"
         )
     }
 }
@@ -361,7 +338,7 @@ fun registerAccessToTypeParameter(
     builtInIntType: KotlinType
 ) {
     registerArrayAccessCall(
-        arrayAccessExpression, clazz, "_D.Cla"
+        arrayAccessExpression, clazz, "kotlin.reification._D.Cla"
     )
     registerIntConstant(
         PsiTreeUtil.findChildOfType(
@@ -469,6 +446,50 @@ fun registerIntsCall(intsCallExpression: KtDotQualifiedExpression, clazz: LazyCl
     )
     ReificationContext.register(
         intsCallExpression,
+        ReificationContext.ContextTypes.TYPE,
+        candidate.returnType
+    )
+    intsResolvedCall.markCallAsCompleted()
+}
+
+fun registerAnnotationsCall(annotationsCallExpression: KtDotQualifiedExpression, clazz: LazyClassDescriptor, project: Project) {
+    val reificationLibReference = clazz.computeExternalType(createHiddenTypeReference(project))
+    val candidate =
+        reificationLibReference.memberScope.getContributedDescriptors(DescriptorKindFilter.ALL).first { x -> x.name.identifier == "annotations" } as DeserializedPropertyDescriptor
+    val returnType = candidate.returnType
+    val explicitReceiver = ExpressionReceiver.create(
+        annotationsCallExpression.receiverExpression as KtNameReferenceExpression,
+        returnType,
+        BindingContext.EMPTY
+    )
+    val call = CallMaker.makeCall(
+        annotationsCallExpression.receiverExpression as KtNameReferenceExpression,
+        explicitReceiver,
+        annotationsCallExpression.operationTokenNode,
+        annotationsCallExpression.selectorExpression,
+        emptyList(),
+        Call.CallType.DEFAULT,
+        false
+    )
+
+    val intsResolvedCall = ResolvedCallImpl(
+        call,
+        candidate,
+        explicitReceiver,
+        null,
+        ExplicitReceiverKind.DISPATCH_RECEIVER,
+        null,
+        DelegatingBindingTrace(BindingContext.EMPTY, ""),
+        TracingStrategy.EMPTY,
+        DataFlowInfoForArgumentsImpl(DataFlowInfo.EMPTY, call)
+    )
+    ReificationContext.register(
+        annotationsCallExpression.selectorExpression!!,
+        ReificationContext.ContextTypes.RESOLVED_CALL,
+        intsResolvedCall
+    )
+    ReificationContext.register(
+        annotationsCallExpression,
         ReificationContext.ContextTypes.TYPE,
         candidate.returnType
     )

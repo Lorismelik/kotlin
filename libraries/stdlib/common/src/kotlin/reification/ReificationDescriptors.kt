@@ -7,22 +7,22 @@ package kotlin.reification
 import kotlin.reflect.KClass
 
 abstract class _D(
-    val p: Array<Cla>,
+    val p: Array<Cla>?,
     var id: Int,
     val pureInstanceCheck: (Any?) -> Boolean,
-    val annotations: Array<Int>,
     val type: KClass<*>? = null,
     val isInterface: Boolean = false
 ) {
     private val hashValue: Int
     var father: Cla? = null
-    var ints: Array<Cla> = arrayOf()
+    var ints: Array<Cla>? = null
+    var annotations: Array<Int>? = null
 
     init {
         hashValue = processHash()
     }
 
-    private fun processHash() = type.hashCode() * p.contentHashCode()
+    private fun processHash() = type.hashCode() * 31 + (p?.contentHashCode() ?: 0) * 31
 
     override fun hashCode(): Int {
         return hashValue
@@ -46,21 +46,21 @@ abstract class _D(
                 return false
             }
             if (this.isInterface) {
-                return oDesc.ints.any { it == this }
+                return oDesc.ints!!.any { it == this }
             }
             while (oDesc!!.type != this.type && oDesc.father != null) {
                 oDesc = oDesc.father!!
             }
             if (oDesc.type == this.type) {
-                this.p.forEachIndexed { index, thisParam ->
-                    val checkBounds = annotations[index] != Variance.INVARIANT.ordinal
+                this.p?.forEachIndexed { index, thisParam ->
+                    val checkBounds = annotations!![index] != Variance.INVARIANT.ordinal
                     if (!thisParam.isInstanceForFreshTypeVars(
-                            oDesc.p[index],
-                            arrayOf(this.annotations[index], oDesc.annotations[index]),
+                            oDesc.p!![index],
+                            arrayOf(this.annotations!![index], oDesc.annotations!![index]),
                             checkBounds
                         )
                     ) {
-                        println("Params not equal ${oDesc.p[index].type} is ${thisParam.type} for ${oDesc.type} is ${this.type}")
+                        println("Params not equal ${oDesc.p!![index].type} is ${thisParam.type} for ${oDesc.type} is ${this.type}")
                         return false
                     }
                 }
@@ -81,10 +81,10 @@ abstract class _D(
                 println("Types not equal or annotations ${o.type} is ${this.type} with annotations ${annotations[1]} and ${annotations[0]}")
                 return false
             }
-            this.p.forEachIndexed { index, thisParam ->
+            this.p?.forEachIndexed { index, thisParam ->
                 if (!thisParam.isInstanceForFreshTypeVars(
-                        o.p[index],
-                        arrayOf(this.annotations[index], o.annotations[index]),
+                        o.p!![index],
+                        arrayOf(this.annotations!![index], o.annotations!![index]),
                         checkBounds
                     )
                 ) {
@@ -118,7 +118,11 @@ abstract class _D(
         if (this === other) return true
         if (other !is _D) return false
 
-        if (!p.contentEquals(other.p)) return false
+        if (p != null && other.p != null) {
+            if (!p.contentEquals(other.p)) return false
+        } else if (!(p == null && other.p == null)) {
+            return false
+        }
         if (type != other.type) return false
 
         return true
@@ -126,13 +130,12 @@ abstract class _D(
 
 
     open class Cla(
-        p: Array<Cla>,
+        p: Array<Cla>?,
         pureInstanceCheck: (Any?) -> Boolean,
         type: KClass<*>?,
-        annotations: Array<Int>,
         isInterface: Boolean = false,
         id: Int = -1
-    ) : _D(p, id, pureInstanceCheck, annotations, type, isInterface) {
+    ) : _D(p, id, pureInstanceCheck, type, isInterface) {
         private var new = true
 
         fun firstReg(): Boolean {
@@ -148,9 +151,9 @@ abstract class _D(
     object Man {
         private val descTable: HashMap<Int, Cla> = HashMap(101, 0.75f)
         var countId = 1
-        val anyDesc = _D.Cla(arrayOf(), { true }, Any::class, arrayOf())
-        val nothingDesc = _D.Cla(arrayOf(), { it is Nothing? }, Nothing::class, arrayOf())
-        val starProjection = _D.Cla(arrayOf(), { true }, null, arrayOf())
+        val anyDesc = _D.Cla(null, { true }, Any::class)
+        val nothingDesc = _D.Cla(null, { it is Nothing? }, Nothing::class)
+        val starProjection = _D.Cla(null, { true }, null)
 
         init {
             anyDesc.id = countId
@@ -162,23 +165,18 @@ abstract class _D(
         fun register(
             pureCheck: (Any?) -> Boolean,
             type: KClass<*>,
-            p: Array<Cla> = arrayOf(),
-            a: Array<Int> = arrayOf(),
+            p: Array<Cla>? = null,
             father: Cla? = null,
-            ints: Array<Cla> = arrayOf(),
+            ints: Array<Cla>? = null,
             isInterface: Boolean = false
         ): Cla {
-            val desc = Cla(p, pureCheck, type, a, isInterface)
+            val desc = Cla(p, pureCheck, type, isInterface)
             val o = descTable[desc.hashCode()]
             if (o == null) {
                 desc.id = countId++
                 descTable[desc.hashCode()] = desc;
-                if (father != null) {
-                    desc.father = father
-                }
-                if (ints.isNotEmpty()) {
-                    desc.ints = ints
-                }
+                desc.father = father
+                desc.ints = ints
                 return desc;
             }
             return o

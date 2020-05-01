@@ -52,13 +52,6 @@ fun createDescriptorArgument(
                 originalDescriptor?.declaredReifiedTypeParameters ?: emptyList()
             )
         },
-        {
-            createCodeForAnnotations(
-                filteredArgs,
-                descriptor,
-                originalDescriptor?.declaredReifiedTypeParameters ?: emptyList()
-            )
-        },
         descriptor
     )
     return KtPsiFactory(project, false).createArgument(text).apply {
@@ -81,8 +74,7 @@ fun registerDescriptorCreatingCall(
     //ClassName.createTD(...)
     expression: KtDotQualifiedExpression,
     originalDescriptor: LazyClassDescriptor? = null,
-    originalDescriptorParamsArray: ValueParameterDescriptor? = null,
-    originalDescriptorAnnotationArray: ValueParameterDescriptor? = null
+    originalDescriptorParamsArray: ValueParameterDescriptor? = null
 ) {
     val arguments =
         ((expression.selectorExpression!! as KtCallExpression).valueArguments[0].getArgumentExpression() as KtCallExpression).valueArgumentList
@@ -93,23 +85,14 @@ fun registerDescriptorCreatingCall(
         args,
         containingDeclaration,
         originalDescriptor,
-        originalDescriptorParamsArray,
-        originalDescriptorAnnotationArray
+        originalDescriptorParamsArray
     )
-    val annotations =
-        ((expression.selectorExpression!! as KtCallExpression).valueArguments[1].getArgumentExpression() as KtCallExpression).valueArgumentList
-    registerAnnotations(annotations, context, originalDescriptor, originalDescriptorAnnotationArray)
     val callExpression = expression.selectorExpression as KtCallExpression
     val classReceiverReferenceExpression = expression.receiverExpression as KtNameReferenceExpression
     registerArrayOfResolvedCall(
         descriptor,
         callExpression.valueArguments[0].getArgumentExpression() as KtCallExpression,
         descriptor.computeExternalType(createHiddenTypeReference(callExpression.project, "Cla"))
-    )
-    registerArrayOfResolvedCall(
-        descriptor,
-        callExpression.valueArguments[1].getArgumentExpression() as KtCallExpression,
-        context.builtIns.intType
     )
     DescriptorFactoryMethodGenerator(
         expression.project,
@@ -156,8 +139,7 @@ fun registerParamsDescsCreating(
     args: List<TypeProjection>,
     containingDeclaration: DeclarationDescriptor,
     originalDescriptor: LazyClassDescriptor? = null,
-    originalDescriptorParamsArray: ValueParameterDescriptor? = null,
-    originalDescriptorAnnotationArray: ValueParameterDescriptor? = null
+    originalDescriptorParamsArray: ValueParameterDescriptor? = null
 ) {
     arguments?.arguments?.forEachIndexed { index, ktValueArg ->
         val argExpression = ktValueArg.getArgumentExpression()!!
@@ -178,69 +160,35 @@ fun registerParamsDescsCreating(
                         context,
                         argExpression,
                         originalDescriptor,
-                        originalDescriptorParamsArray,
-                        originalDescriptorAnnotationArray
+                        originalDescriptorParamsArray
                     )
                     // Try to create desc for simple type
                 } else {
                     DescriptorRegisterCall(
                         arguments.project,
                         descriptor,
+                        args[index].type,
                         callExpression,
                         containingDeclaration,
-                        context,
-                        {
-                            registerArrayOfResolvedCall(
-                                descriptor,
-                                callExpression.valueArguments[2].getArgumentExpression() as KtCallExpression,
-                                descriptor.computeExternalType(createHiddenTypeReference(callExpression.project, "Cla"))
-                            )
-                        },
-                        {
-                            registerArrayOfResolvedCall(
-                                descriptor,
-                                callExpression.valueArguments[3].getArgumentExpression() as KtCallExpression,
-                                context.builtIns.intType
-                            )
-                        }
-                    ).createCallDescriptor()
+                        context
+                    ) {
+                        registerArrayOfResolvedCall(
+                            descriptor,
+                            callExpression.valueArguments[2].getArgumentExpression() as KtCallExpression,
+                            descriptor.computeExternalType(createHiddenTypeReference(callExpression.project, "Cla"))
+                        )
+                    }.createCallDescriptor()
                 }
             }
             argExpression is KtArrayAccessExpression -> {
                 registerTemplateParametersOrAnnotations(
                     argExpression,
-                    "_D.Cla",
+                    "kotlin.reification_D.Cla",
                     context,
                     originalDescriptor!!,
                     originalDescriptorParamsArray
                 )
             }
-        }
-    }
-}
-
-fun registerAnnotations(
-    annotationList: KtValueArgumentList?,
-    context: GeneratorContext,
-    originalDescriptor: LazyClassDescriptor? = null,
-    originalDescriptorAnnotationArray: ValueParameterDescriptor? = null
-) {
-    annotationList?.arguments?.forEach { annotation ->
-        val annotationExpression = annotation.getArgumentExpression()!!
-        if (annotationExpression is KtConstantExpression) {
-            registerIntConstant(
-                annotationExpression,
-                context.moduleDescriptor,
-                context.builtIns.intType
-            )
-        } else {
-            registerTemplateParametersOrAnnotations(
-                annotationExpression as KtArrayAccessExpression,
-                "kotlin.Int",
-                context,
-                originalDescriptor!!,
-                originalDescriptorAnnotationArray
-            )
         }
     }
 }

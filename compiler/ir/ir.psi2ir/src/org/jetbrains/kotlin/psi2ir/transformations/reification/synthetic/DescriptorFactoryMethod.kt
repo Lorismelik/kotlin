@@ -34,6 +34,7 @@ import org.jetbrains.kotlin.resolve.lazy.descriptors.LazyClassDescriptor
 import org.jetbrains.kotlin.resolve.reification.ReificationContext
 import org.jetbrains.kotlin.resolve.scopes.receivers.ExpressionReceiver
 import org.jetbrains.kotlin.resolve.source.toSourceElement
+import org.jetbrains.kotlin.types.KotlinType
 import org.jetbrains.kotlin.types.typeUtil.asTypeProjection
 import org.jetbrains.kotlin.types.typeUtil.getImmediateSuperclassNotAny
 import org.jetbrains.kotlin.types.typeUtil.isInterface
@@ -44,23 +45,26 @@ class DescriptorFactoryMethodGenerator(val project: Project, val clazz: LazyClas
 
     var registerCall: KtCallExpression? = null
     var parameterArrayArgumentReference: KtNameReferenceExpression? = null
-    var annotationsArrayArgumentReference: KtNameReferenceExpression? = null
     var typeDescProperty: KtProperty? = null
     var descriptor: LocalVariableDescriptor? = null
     var supertypeAssignment: KtBinaryExpression? = null
     var returnExpression: KtNameReferenceExpression? = null
     var ifExpression: KtIfExpression? = null
     var interafacesAssignment: KtBinaryExpression? = null
+    var implementedInterfaces: List<KotlinType>? = null
+    var annotationsAssignment: KtBinaryExpression? = null
 
     private fun createByFactory(): KtNamedFunction {
         val typeRef = createTextTypeReferenceWithStarProjection(this.clazz.defaultType)
         val fatherDescriptor = fatherDescriptorRegisteringCode()
         val intsDescs = interfacesDescriptorsRegisteringCode()
-        val newText = """fun createTD(p: Array<kotlin.reification._D.Cla>, a: Array<Int>): kotlin.reification._D.Cla { 
-                |   val typeDesc = kotlin.reification._D.Man.register({it is $typeRef}, ${this.clazz.defaultType.constructor} :: class, p, a) 
+        val annotations = createCodeForAnnotations(clazz)
+        val newText = """fun createTD(p: Array<kotlin.reification._D.Cla>): kotlin.reification._D.Cla { 
+                |   val typeDesc = kotlin.reification._D.Man.register({it is $typeRef}, ${this.clazz.defaultType.constructor} :: class, p)
                 |   if (typeDesc.firstReg()) {
                 |       typeDesc.father = $fatherDescriptor
                 |       typeDesc.ints = arrayOf<kotlin.reification._D.Cla>($intsDescs)
+                |       typeDesc.annotations = arrayOf<Int>($annotations)
                 |   }
                 |   return typeDesc
                 |}""".trimMargin()
@@ -72,20 +76,19 @@ class DescriptorFactoryMethodGenerator(val project: Project, val clazz: LazyClas
             ifExpression = statements[1] as KtIfExpression
             supertypeAssignment = (ifExpression!!.then as KtBlockExpression).firstStatement as KtBinaryExpression
             interafacesAssignment = (ifExpression!!.then as KtBlockExpression).statements[1] as KtBinaryExpression
+            annotationsAssignment = (ifExpression!!.then as KtBlockExpression).statements[2] as KtBinaryExpression
             returnExpression = PsiTreeUtil.findChildOfType(statements[2], KtNameReferenceExpression::class.java)
             registerCall = PsiTreeUtil.findChildOfType(statements[0], KtCallExpression::class.java)
             val valueArgList = PsiTreeUtil.findChildOfType(statements[0], KtValueArgumentList::class.java)
             val pureCheckExpression = PsiTreeUtil.findChildOfType(valueArgList!!.arguments[0], KtIsExpression::class.java)!!
             ReificationContext.register(pureCheckExpression, ReificationContext.ContextTypes.REIFICATION_CONTEXT, true)
             parameterArrayArgumentReference = PsiTreeUtil.findChildOfType(valueArgList.arguments[2], KtNameReferenceExpression::class.java)
-            annotationsArrayArgumentReference =
-                PsiTreeUtil.findChildOfType(valueArgList.arguments[3], KtNameReferenceExpression::class.java)
         }
     }
 
     private fun interfacesDescriptorsRegisteringCode(): String {
-        val interfaces = this.clazz.defaultType.supertypes().filter { it.isInterface() }
-        return interfaces.joinToString {
+        implementedInterfaces = this.clazz.defaultType.supertypes().filter { it.isInterface() }
+        return implementedInterfaces!!.joinToString {
             createTypeParameterDescriptorSource(
                 it.asTypeProjection(),
                 clazz.declaredReifiedTypeParameters,
@@ -119,7 +122,6 @@ class DescriptorFactoryMethodGenerator(val project: Project, val clazz: LazyClas
                         }
                     }.joinToString()
                 },
-                { createCodeForAnnotations(reifiedTypeInstances, supertype, childReifiedTypeParams, true) },
                 supertype
             )
         }
@@ -157,43 +159,29 @@ class DescriptorFactoryMethodGenerator(val project: Project, val clazz: LazyClas
             varargElementType = null,
             source = SourceElement.NO_SOURCE
         )
-
-        val annotationsParameter = ValueParameterDescriptorImpl(
-            desc, null, 1, Annotations.EMPTY, Name.identifier("a"),
-            // array of annotations is 2 parameter
-            clazz.computeExternalType(declaration.valueParameters[1].typeReference),
-            declaresDefaultValue = false,
-            isCrossinline = false,
-            isNoinline = false,
-            varargElementType = null,
-            source = SourceElement.NO_SOURCE
-        )
         return desc.initialize(
             null,
             clazzCompanion.thisAsReceiverParameter,
             emptyList(),
-            listOf(paramsDescsParameter, annotationsParameter),
+            listOf(paramsDescsParameter),
             returnType,
             Modality.FINAL,
             Visibilities.PUBLIC
         ).also {
             registerDescVariable(it)
-            DescriptorRegisterCall(project,
-                                   clazz,
-                                   registerCall!!,
-                                   it,
-                                   context,
-                                   {
-                                       registerResolvedCallForParameter(
-                                           parameterArrayArgumentReference!!,
-                                           it.valueParameters[0]
-                                       )
-                                   }, {
-                                       registerResolvedCallForParameter(
-                                           annotationsArrayArgumentReference!!,
-                                           it.valueParameters[1]
-                                       )
-                                   }).createCallDescriptor()
+            DescriptorRegisterCall(
+                project,
+                clazz,
+                clazz.defaultType,
+                registerCall!!,
+                it,
+                context
+            ) {
+                registerResolvedCallForParameter(
+                    parameterArrayArgumentReference!!,
+                    it.valueParameters[0]
+                )
+            }.createCallDescriptor()
 
             registerIfCondition()
             ReificationContext.register(ifExpression!!.then!!, ReificationContext.ContextTypes.TYPE, this.context.builtIns.unitType)
@@ -201,6 +189,7 @@ class DescriptorFactoryMethodGenerator(val project: Project, val clazz: LazyClas
             // It's important to register function desc before register supertype because of cycle reference
             registerSupertypeSetting(it)
             registerIntsSetting(it)
+            registerAnnotationsSetting()
             registerVarRefExpression()
         }
     }
@@ -289,8 +278,7 @@ class DescriptorFactoryMethodGenerator(val project: Project, val clazz: LazyClas
                 context,
                 fatherCreatingCall as KtDotQualifiedExpression,
                 clazz,
-                containingDesc.valueParameters[0],
-                containingDesc.valueParameters[1]
+                containingDesc.valueParameters[0]
             )
         }
     }
@@ -328,31 +316,49 @@ class DescriptorFactoryMethodGenerator(val project: Project, val clazz: LazyClas
             interfacesExpression,
             clazz.computeExternalType(createHiddenTypeReference(interfacesExpression.project, "Cla"))
         )
-        interfacesExpression.valueArguments.forEach {
-            val callExpression = (it.getArgumentExpression() as KtDotQualifiedExpression).selectorExpression as KtCallExpression
+        interfacesExpression.valueArguments.forEachIndexed { index, arg ->
+            val callExpression = (arg.getArgumentExpression() as KtDotQualifiedExpression).selectorExpression as KtCallExpression
             DescriptorRegisterCall(
                 interfacesExpression.project,
                 clazz,
+                implementedInterfaces!![index],
                 callExpression,
                 containingDesc,
-                context,
-                {
-                    registerArrayOfResolvedCall(
-                        clazz,
-                        callExpression.valueArguments[2].getArgumentExpression() as KtCallExpression,
-                        clazz.computeExternalType(createHiddenTypeReference(interfacesExpression.project, "Cla"))
-                    )
-                },
-                {
-                    registerArrayOfResolvedCall(
-                        clazz,
-                        callExpression.valueArguments[3].getArgumentExpression() as KtCallExpression,
-                        context.builtIns.intType
-                    )
-                }).createCallDescriptor()
+                context
+            ) {
+                registerArrayOfResolvedCall(
+                    clazz,
+                    callExpression.valueArguments[2].getArgumentExpression() as KtCallExpression,
+                    clazz.computeExternalType(createHiddenTypeReference(interfacesExpression.project, "Cla"))
+                )
+            }.createCallDescriptor()
         }
         val intsRef = interafacesAssignment!!.left as KtDotQualifiedExpression
         registerVarRefExpression(intsRef.receiverExpression)
         registerIntsCall(intsRef, clazz, supertypeAssignment!!.project)
+    }
+
+    private fun registerAnnotationsSetting() {
+        val annotationsExpression = annotationsAssignment!!.right!! as KtCallExpression
+        registerArrayOfResolvedCall(
+            clazz,
+            annotationsExpression,
+            this.context.builtIns.intType
+        )
+        val annotationList = annotationsExpression.valueArgumentList
+        annotationList?.arguments?.forEach { annotation ->
+            val annotationExpression = annotation.getArgumentExpression()!!
+            if (annotationExpression is KtConstantExpression) {
+                registerIntConstant(
+                    annotationExpression,
+                    context.moduleDescriptor,
+                    context.builtIns.intType
+                )
+            }
+        }
+
+        val annotationsRef = annotationsAssignment!!.left as KtDotQualifiedExpression
+        registerVarRefExpression(annotationsRef.receiverExpression)
+        registerAnnotationsCall(annotationsRef, clazz, annotationsAssignment!!.project)
     }
 }
