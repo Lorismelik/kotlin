@@ -177,7 +177,7 @@ fun registerParamsDescsCreating(
             argExpression is KtArrayAccessExpression -> {
                 registerTemplateParametersOrAnnotations(
                     argExpression,
-                    "_D.Cla",
+                    "kotlin.reflect._D.Cla",
                     context,
                     originalDescriptor!!,
                     originalDescriptorParamsArray

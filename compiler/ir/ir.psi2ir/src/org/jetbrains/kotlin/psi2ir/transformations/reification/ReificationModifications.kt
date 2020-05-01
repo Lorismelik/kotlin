@@ -319,7 +319,7 @@ fun registerAccessToTypeParameter(
     builtInIntType: KotlinType
 ) {
     registerArrayAccessCall(
-        arrayAccessExpression, clazz, "_D.Cla"
+        arrayAccessExpression, clazz, "kotlin.reflect._D.Cla"
     )
     registerIntConstant(
         PsiTreeUtil.findChildOfType(
