@@ -23,6 +23,7 @@ object ReificationContext {
     }
 
     enum class ContextTypes {
+        CACHE,
         CONSTANT,
         CTOR_PARAM,
         DESC,
@@ -30,11 +31,9 @@ object ReificationContext {
         TYPE,
         RESOLVED_CALL,
         REIFICATION_CONTEXT,
-        CONVERSION,
         REFLECTION_REF,
         DESC_FACTORY_EXPRESSION,
         ARRAY_OF,
-        ARRAY_GET,
         INSTANCE_OF_LEFT_IR
     }
 }

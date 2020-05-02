@@ -51,6 +51,7 @@ import org.jetbrains.kotlin.resolve.calls.tasks.*
 import org.jetbrains.kotlin.resolve.calls.util.FakeCallableDescriptorForObject
 import org.jetbrains.kotlin.resolve.deprecation.DeprecationResolver
 import org.jetbrains.kotlin.resolve.descriptorUtil.hasDynamicExtensionAnnotation
+import org.jetbrains.kotlin.resolve.reification.ReificationResolver
 import org.jetbrains.kotlin.resolve.scopes.*
 import org.jetbrains.kotlin.resolve.scopes.receivers.*
 import org.jetbrains.kotlin.resolve.scopes.utils.canBeResolvedWithoutDeprecation
@@ -174,7 +175,13 @@ class NewResolutionOldInference(
 
         val dynamicScope = dynamicCallableDescriptors.createDynamicDescriptorScope(context.call, context.scope.ownerDescriptor)
         val scopeTower = ImplicitScopeTowerImpl(
-            context, dynamicScope, syntheticScopes, context.call.createLookupLocation(), typeApproximator, callResolver, candidateInterceptor
+            context,
+            dynamicScope,
+            syntheticScopes,
+            context.call.createLookupLocation(),
+            typeApproximator,
+            callResolver,
+            candidateInterceptor
         )
 
         val shouldUseOperatorRem = languageVersionSettings.supportsFeature(LanguageFeature.OperatorRem)
@@ -208,7 +215,8 @@ class NewResolutionOldInference(
             )
         }
 
-        candidates = candidateInterceptor.interceptResolvedCandidates(candidates, context, candidateResolver, callResolver, name, kind, tracing)
+        candidates =
+            candidateInterceptor.interceptResolvedCandidates(candidates, context, candidateResolver, callResolver, name, kind, tracing)
 
         if (candidates.isEmpty()) {
             if (reportAdditionalDiagnosticIfNoCandidates(context, nameToResolve, kind, scopeTower, detailedReceiver)) {
@@ -385,7 +393,15 @@ class NewResolutionOldInference(
             initialResults: Collection<FunctionDescriptor>,
             location: LookupLocation
         ): Collection<FunctionDescriptor> {
-            return candidateInterceptor.interceptCandidates(initialResults, this, resolutionContext, resolutionScope, callResolver, name, location)
+            return candidateInterceptor.interceptCandidates(
+                initialResults,
+                this,
+                resolutionContext,
+                resolutionScope,
+                callResolver,
+                name,
+                location
+            )
         }
     }
 
@@ -461,6 +477,15 @@ class NewResolutionOldInference(
             candidateResolver.performResolutionForCandidateCall(callCandidateResolutionContext, basicCallContext.checkArguments) // todo
 
             val diagnostics = createDiagnosticsForCandidate(towerCandidate, candidateCall)
+            if (towerCandidate.descriptor is ClassConstructorDescriptor
+                && towerCandidate.descriptor.containingDeclaration is ClassDescriptor
+                && (towerCandidate.descriptor.containingDeclaration as ClassDescriptor).isReified
+            ) {
+                ReificationResolver.resolveLocalDescriptorUsage(
+                    candidateCall.resultingDescriptor.returnType!!,
+                    this.basicCallContext.scope.ownerDescriptor
+                )
+            }
             return MyCandidate(diagnostics, candidateCall) {
                 candidateCall.performRemainingTasks()
                 createDiagnosticsForCandidate(towerCandidate, candidateCall)
@@ -568,7 +593,14 @@ class NewResolutionOldInference(
 }
 
 fun ResolutionContext<*>.transformToReceiverWithSmartCastInfo(receiver: ReceiverValue) =
-    transformToReceiverWithSmartCastInfo(scope.ownerDescriptor, trace.bindingContext, dataFlowInfo, receiver, languageVersionSettings, dataFlowValueFactory)
+    transformToReceiverWithSmartCastInfo(
+        scope.ownerDescriptor,
+        trace.bindingContext,
+        dataFlowInfo,
+        receiver,
+        languageVersionSettings,
+        dataFlowValueFactory
+    )
 
 fun transformToReceiverWithSmartCastInfo(
     containingDescriptor: DeclarationDescriptor,
@@ -606,7 +638,7 @@ private val BasicCallResolutionContext.isSuperCall: Boolean get() = call.explici
 internal fun reportResolvedUsingDeprecatedVisibility(
     call: Call,
     candidateDescriptor: CallableDescriptor,
-    resultingDescriptor : CallableDescriptor,
+    resultingDescriptor: CallableDescriptor,
     diagnostic: ResolvedUsingDeprecatedVisibility,
     trace: BindingTrace
 ) {

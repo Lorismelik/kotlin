@@ -34,6 +34,7 @@ import org.jetbrains.kotlin.resolve.calls.context.ContextDependency.INDEPENDENT
 import org.jetbrains.kotlin.resolve.calls.smartcasts.*
 import org.jetbrains.kotlin.resolve.calls.util.CallMaker
 import org.jetbrains.kotlin.resolve.checkers.PrimitiveNumericComparisonCallChecker
+import org.jetbrains.kotlin.resolve.reification.ReificationResolver
 import org.jetbrains.kotlin.resolve.scopes.LexicalScope
 import org.jetbrains.kotlin.resolve.scopes.LexicalScopeKind
 import org.jetbrains.kotlin.types.*
@@ -644,6 +645,10 @@ class PatternMatchingTypingVisitor internal constructor(facade: ExpressionTyping
 
         if (CastDiagnosticsUtil.isCastErased(subjectType, targetType, KotlinTypeChecker.DEFAULT)) {
             context.trace.report(Errors.CANNOT_CHECK_FOR_ERASED.on(typeReferenceAfterIs, targetType))
+        }
+
+        if (targetDescriptor?.isReified == true) {
+            ReificationResolver.resolveLocalDescriptorUsage(targetType, context.scope.ownerDescriptor)
         }
         return context.dataFlowInfo.let {
             ConditionalDataFlowInfo(it.establishSubtyping(subjectDataFlowValue, targetType, components.languageVersionSettings), it)
