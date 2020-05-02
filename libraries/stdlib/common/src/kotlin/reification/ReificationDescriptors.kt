@@ -171,10 +171,11 @@ abstract class _D(
             isInterface: Boolean = false
         ): Cla {
             val desc = Cla(p, pureCheck, type, isInterface)
-            val o = descTable[desc.hashCode()]
+            val hashCode = desc.hashCode()
+            val o = descTable[hashCode]
             if (o == null) {
                 desc.id = countId++
-                descTable[desc.hashCode()] = desc;
+                descTable[hashCode] = desc;
                 desc.father = father
                 desc.ints = ints
                 return desc;

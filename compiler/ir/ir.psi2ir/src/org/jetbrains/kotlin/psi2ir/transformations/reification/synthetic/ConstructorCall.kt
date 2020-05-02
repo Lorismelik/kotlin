@@ -76,24 +76,28 @@ fun registerDescriptorCreatingCall(
     originalDescriptor: LazyClassDescriptor? = null,
     originalDescriptorParamsArray: ValueParameterDescriptor? = null
 ) {
-    val arguments =
-        ((expression.selectorExpression!! as KtCallExpression).valueArguments[0].getArgumentExpression() as KtCallExpression).valueArgumentList
-    registerParamsDescsCreating(
-        arguments,
-        descriptor,
-        context,
-        args,
-        containingDeclaration,
-        originalDescriptor,
-        originalDescriptorParamsArray
-    )
     val callExpression = expression.selectorExpression as KtCallExpression
+    val parametersExpression = callExpression.valueArguments[0].getArgumentExpression()!!
+    if (parametersExpression is KtCallExpression) {
+        val arguments = parametersExpression.valueArgumentList
+        registerParamsDescsCreating(
+            arguments,
+            descriptor,
+            context,
+            args,
+            containingDeclaration,
+            originalDescriptor,
+            originalDescriptorParamsArray
+        )
+        registerArrayOfResolvedCall(
+            descriptor,
+            callExpression.valueArguments[0].getArgumentExpression() as KtCallExpression,
+            descriptor.computeExternalType(createHiddenTypeReference(callExpression.project, "Cla"))
+        )
+    } else {
+        registerNull(context, parametersExpression)
+    }
     val classReceiverReferenceExpression = expression.receiverExpression as KtNameReferenceExpression
-    registerArrayOfResolvedCall(
-        descriptor,
-        callExpression.valueArguments[0].getArgumentExpression() as KtCallExpression,
-        descriptor.computeExternalType(createHiddenTypeReference(callExpression.project, "Cla"))
-    )
     DescriptorFactoryMethodGenerator(
         expression.project,
         descriptor,

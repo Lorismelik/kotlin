@@ -87,7 +87,14 @@ fun createCodeForDescriptorFactoryMethodCall(
     parametersDescriptors: () -> String,
     descriptor: ClassDescriptor
 ): String {
-    return "${descriptor.name.identifier}.createTD(arrayOf<kotlin.reification._D.Cla>(${parametersDescriptors.invoke()}))"
+    val parameters = with(parametersDescriptors.invoke()) {
+        if (this.isNotBlank()) {
+            "arrayOf<kotlin.reification._D.Cla>($this)"
+        } else {
+            "null"
+        }
+    }
+    return "${descriptor.name.identifier}.createTD($parameters)"
 }
 
 fun createCodeForAnnotations(

@@ -59,7 +59,7 @@ class DescriptorFactoryMethodGenerator(val project: Project, val clazz: LazyClas
         val fatherDescriptor = fatherDescriptorRegisteringCode()
         val intsDescs = interfacesDescriptorsRegisteringCode()
         val annotations = createCodeForAnnotations(clazz)
-        val newText = """fun createTD(p: Array<kotlin.reification._D.Cla>): kotlin.reification._D.Cla { 
+        val newText = """fun createTD(p: Array<kotlin.reification._D.Cla>?): kotlin.reification._D.Cla { 
                 |   val typeDesc = kotlin.reification._D.Man.register({it is $typeRef}, ${this.clazz.defaultType.constructor} :: class, p)
                 |   if (typeDesc.firstReg()) {
                 |       typeDesc.father = $fatherDescriptor
