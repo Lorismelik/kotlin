@@ -33,6 +33,8 @@ import org.jetbrains.kotlin.psi2ir.pureEndOffsetOrUndefined
 import org.jetbrains.kotlin.psi2ir.pureStartOffsetOrUndefined
 import org.jetbrains.kotlin.resolve.BindingContext
 import org.jetbrains.kotlin.resolve.hasBackingField
+import org.jetbrains.kotlin.resolve.reification.ReificationContext
+import java.lang.RuntimeException
 
 class PropertyGenerator(declarationGenerator: DeclarationGenerator) : DeclarationGeneratorExtension(declarationGenerator) {
     fun generatePropertyDeclaration(ktProperty: KtProperty): IrProperty {
@@ -171,7 +173,9 @@ class PropertyGenerator(declarationGenerator: DeclarationGenerator) : Declaratio
     }
 
     private fun getPropertyDescriptor(ktProperty: KtProperty): PropertyDescriptor {
-        val variableDescriptor = getOrFail(BindingContext.VARIABLE, ktProperty)
+        val variableDescriptor = get(BindingContext.VARIABLE, ktProperty)
+            ?: ReificationContext.getReificationContext<PropertyDescriptor?>(ktProperty, ReificationContext.ContextTypes.DESC)
+            ?: throw RuntimeException("No ${BindingContext.VARIABLE} for $ktProperty")
         return variableDescriptor as? PropertyDescriptor ?: TODO("not a property: $variableDescriptor")
     }
 

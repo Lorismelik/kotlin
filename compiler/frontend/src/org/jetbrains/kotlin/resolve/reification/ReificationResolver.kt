@@ -39,11 +39,11 @@ object ReificationResolver {
         var scopeOwner: DeclarationDescriptor? = owner
         while (scopeOwner != null && scopeOwner !is ModuleDescriptor && scopeOwner !is PackageFragmentDescriptor) {
             if (scopeOwner is ClassDescriptor) {
-                val isCacheOwner = type.arguments.filter { it.type.isTypeParameter() }
+                /*type.arguments.filter { it.type.isTypeParameter() }
                     .all {
                         it.type.constructor.declarationDescriptor?.containingDeclaration == scopeOwner
-                    }
-                if (isCacheOwner) {
+                    }*/
+                if (!scopeOwner.isInner) {
                     registerLocalDescriptorUsage(scopeOwner, type)
                     return
                 }

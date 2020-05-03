@@ -33,6 +33,8 @@ object ReificationContext {
         REIFICATION_CONTEXT,
         REFLECTION_REF,
         DESC_FACTORY_EXPRESSION,
+        LOCAL_CACHE_PROPERTY,
+        LOCAL_CACHE_GETTER,
         ARRAY_OF,
         INSTANCE_OF_LEFT_IR
     }

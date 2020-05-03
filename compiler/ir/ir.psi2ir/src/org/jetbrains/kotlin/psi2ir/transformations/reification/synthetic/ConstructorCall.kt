@@ -256,8 +256,13 @@ fun createTypeParametersDescriptorsSource(
 }
 
 
-fun registerArrayOfResolvedCall(descriptor: LazyClassDescriptor, callExpression: KtCallExpression, substituteType: KotlinType) {
-    val functionDescriptor = getArrayOfDescriptor(descriptor)
+fun registerArrayOfResolvedCall(
+    descriptor: LazyClassDescriptor,
+    callExpression: KtCallExpression,
+    substituteType: KotlinType,
+    nulls: Boolean = false
+) {
+    val functionDescriptor = getArrayOfDescriptor(descriptor, nulls)
     val call = CallMaker.makeCall(
         callExpression,
         null,
@@ -284,15 +289,17 @@ fun registerArrayOfResolvedCall(descriptor: LazyClassDescriptor, callExpression:
     resolvedCall.markCallAsCompleted()
 }
 
-fun getArrayOfDescriptor(descriptor: LazyClassDescriptor) =
-    ReificationContext.getReificationContext(true, ReificationContext.ContextTypes.ARRAY_OF)
+fun getArrayOfDescriptor(descriptor: LazyClassDescriptor, nulls: Boolean = false): DeserializedSimpleFunctionDescriptor {
+    val name = if (nulls) "arrayOfNulls" else "arrayOf"
+    return ReificationContext.getReificationContext(true, ReificationContext.ContextTypes.ARRAY_OF)
         ?: ReificationContext.register(
             true,
             ReificationContext.ContextTypes.ARRAY_OF,
             descriptor.scopeForClassHeaderResolution.findPackage(Name.identifier("kotlin"))!!.memberScope.getContributedFunctions(
-                Name.identifier("arrayOf"), NoLookupLocation.FROM_BACKEND
+                Name.identifier(name), NoLookupLocation.FROM_BACKEND
             ).first()
         ) as DeserializedSimpleFunctionDescriptor
+}
 
 fun registerStarProjectionDescCall(argExpression: KtDotQualifiedExpression, clazz: LazyClassDescriptor) {
     val nameReferenceExpression = argExpression.selectorExpression as KtNameReferenceExpression
