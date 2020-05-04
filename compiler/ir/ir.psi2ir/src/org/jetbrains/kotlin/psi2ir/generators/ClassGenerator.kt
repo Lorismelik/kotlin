@@ -434,7 +434,7 @@ class ClassGenerator(
         }
 
         val descriptor = irClass.descriptor
-        if (descriptor is SyntheticClassOrObjectDescriptor && ReificationContext.getReificationContext<List<KotlinType>?>(descriptor.containingDeclaration, ReificationContext.ContextTypes.CACHE) != null) {
+        if (descriptor.isCompanionObject && ReificationContext.getReificationContext<List<KotlinType>?>(descriptor.containingDeclaration, ReificationContext.ContextTypes.CACHE) != null) {
             addReificationLocalCacheDeclarations(irClass, ktClassOrObject.psiOrParent.project)
         }
         // generate synthetic nested classes (including companion)
@@ -476,19 +476,23 @@ class ClassGenerator(
     }
 
     private fun addReificationLocalCacheDeclarations(irClass: IrClass, project: Project) {
-        val syntheticObject = irClass.descriptor  as SyntheticClassOrObjectDescriptor
         with(
             LocalDescriptorCache(
                 project,
-                syntheticObject,
+                irClass.descriptor,
                 this.context
             )
         ) {
-            val declaration = generateLocalCachePropertyIfNeeded()
+            val propertyDeclaration = generateLocalCachePropertyIfNeeded()
             declarationGenerator.generateClassMemberDeclaration(
-                declaration,
+                propertyDeclaration,
                 irClass
-            )!!
+            )
+            val staticLocalCache = generateLocalCacheGetterIfNeeded()
+            declarationGenerator.generateClassMemberDeclaration(
+                staticLocalCache,
+                irClass
+            )
         }
     }
 

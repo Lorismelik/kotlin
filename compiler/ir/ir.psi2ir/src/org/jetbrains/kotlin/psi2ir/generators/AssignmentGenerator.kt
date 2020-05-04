@@ -383,6 +383,7 @@ class AssignmentGenerator(statementGenerator: StatementGenerator) : StatementGen
     ): ArrayAccessAssignmentReceiver {
         val indexedGetResolvedCall = get(BindingContext.INDEXED_LVALUE_GET, ktLeft)
         val indexedSetResolvedCall = get(BindingContext.INDEXED_LVALUE_SET, ktLeft)
+            ?: ReificationContext.getReificationContext<ResolvedCall<FunctionDescriptor>?>(ktLeft, ReificationContext.ContextTypes.RESOLVED_CALL)
 
         return ArrayAccessAssignmentReceiver(
             ktLeft.arrayExpression!!.genExpr(),

@@ -32,6 +32,8 @@ import org.jetbrains.kotlin.psi.psiUtil.startOffsetSkippingComments
 import org.jetbrains.kotlin.psi2ir.deparenthesize
 import org.jetbrains.kotlin.psi2ir.intermediate.defaultLoad
 import org.jetbrains.kotlin.resolve.BindingContext
+import org.jetbrains.kotlin.resolve.checkers.PrimitiveNumericComparisonInfo
+import org.jetbrains.kotlin.resolve.reification.ReificationContext
 import org.jetbrains.kotlin.utils.SmartList
 
 class BranchingExpressionGenerator(statementGenerator: StatementGenerator) : StatementGeneratorExtension(statementGenerator) {
@@ -251,7 +253,8 @@ class BranchingExpressionGenerator(statementGenerator: StatementGenerator) : Sta
         return OperatorExpressionGenerator(statementGenerator).generateEquality(
             ktCondition.startOffsetSkippingComments, ktCondition.endOffset, IrStatementOrigin.EQEQ,
             irSubject.defaultLoad(), irExpression,
-            context.bindingContext[BindingContext.PRIMITIVE_NUMERIC_COMPARISON_INFO, ktExpression]
+            context.bindingContext[BindingContext.PRIMITIVE_NUMERIC_COMPARISON_INFO, ktExpression] ?:
+                    ReificationContext.getReificationContext<PrimitiveNumericComparisonInfo>(ktExpression, ReificationContext.ContextTypes.PRIMITIVE_NUMERIC_COMPARISON_INFO)
         )
     }
 }

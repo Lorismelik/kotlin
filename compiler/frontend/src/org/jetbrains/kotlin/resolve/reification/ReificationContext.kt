@@ -29,12 +29,13 @@ object ReificationContext {
         DESC,
         VAR,
         TYPE,
+        PRIMITIVE_NUMERIC_COMPARISON_INFO,
         RESOLVED_CALL,
         REIFICATION_CONTEXT,
         REFLECTION_REF,
         DESC_FACTORY_EXPRESSION,
         LOCAL_CACHE_PROPERTY,
-        LOCAL_CACHE_GETTER,
+        LOCAL_CACHE_STATIC_GETTER,
         ARRAY_OF,
         INSTANCE_OF_LEFT_IR
     }

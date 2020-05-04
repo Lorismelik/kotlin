@@ -180,26 +180,29 @@ fun registerDescriptorCall(clazz: LazyClassDescriptor, expression: KtNameReferen
 }
 
 //p[] or a[]
-fun registerArrayAccessCall(arrayAccessExpression: KtArrayAccessExpression, clazz: LazyClassDescriptor, typeSource: String) {
+fun registerArrayAccessCall(arrayAccessExpression: KtArrayAccessExpression, clazz: LazyClassDescriptor, typeSource: String, isGet: Boolean = true, valueExpression: KtExpression? = null) {
     val candidate = getArrayGetDescriptor(
         clazz,
         arrayAccessExpression,
-        typeSource
+        typeSource,
+        isGet
     )
-
+    val returnType = if (isGet) candidate.returnType!! else candidate.dispatchReceiverParameter!!.value.type
     val receiver = ExpressionReceiver.create(
         arrayAccessExpression.arrayExpression!!,
-        candidate.returnType!!,
+        returnType,
         BindingContext.EMPTY
     )
 
+    val callType = if (isGet) Call.CallType.ARRAY_GET_METHOD else Call.CallType.ARRAY_SET_METHOD
+    val arguments = if (isGet) arrayAccessExpression.indexExpressions else listOf(arrayAccessExpression.indexExpressions.first(), valueExpression)
     val call = CallMaker.makeCallWithExpressions(
         arrayAccessExpression,
         receiver,
         null,
         arrayAccessExpression,
-        arrayAccessExpression.indexExpressions,
-        Call.CallType.ARRAY_GET_METHOD
+        arguments,
+        callType
     )
     val resolvedCall = ResolvedCallImpl(
         call,
@@ -276,8 +279,10 @@ fun registerParameterOrAnnotationArrayCall(
 fun getArrayGetDescriptor(
     descriptor: LazyClassDescriptor,
     element: KtArrayAccessExpression,
-    typeSource: String
+    typeSource: String,
+    isGet: Boolean = true
 ): DeserializedSimpleFunctionDescriptor {
+    val operationName = if (isGet) "get" else "set"
     return (descriptor.scopeForClassHeaderResolution.findPackage(Name.identifier("kotlin"))!!.memberScope.getContributedDescriptors(
         DescriptorKindFilter.CLASSIFIERS
     ).first { x ->
@@ -294,7 +299,7 @@ fun getArrayGetDescriptor(
                 )
             )
         ).getContributedFunctions(
-            Name.identifier("get"), KotlinLookupLocation(element)
+            Name.identifier(operationName), KotlinLookupLocation(element)
         ).first() as DeserializedSimpleFunctionDescriptor
 }
 
