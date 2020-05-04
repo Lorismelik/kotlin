@@ -31,7 +31,5 @@ class ScriptingResolveExtension : SyntheticResolveExtension {
     }
 
 
-    override fun getSyntheticCompanionObjectNameIfNeeded(thisDescriptor: ClassDescriptor): Name? =
-        if (thisDescriptor.isReified) Name.identifier("Companion")
-        else null
+    override fun getSyntheticCompanionObjectNameIfNeeded(thisDescriptor: ClassDescriptor): Name? = Name.identifier("Companion")
 }

@@ -45,10 +45,7 @@ import org.jetbrains.kotlin.storage.StorageManager;
 import org.jetbrains.kotlin.types.*;
 import org.jetbrains.kotlin.types.checker.KotlinTypeRefiner;
 
-import java.util.ArrayList;
-import java.util.Collection;
-import java.util.Collections;
-import java.util.List;
+import java.util.*;
 import java.util.stream.Collectors;
 
 import static kotlin.collections.CollectionsKt.firstOrNull;
@@ -215,11 +212,10 @@ public class LazyClassDescriptor extends ClassDescriptorBase implements ClassDes
         }
 
         this.companionObjectDescriptor = storageManager.createNullableLazyValue(
-                () -> computeCompanionObjectDescriptor(getCompanionObjectIfAllowed())
-        );
+                () ->  computeCompanionObjectDescriptor(getCompanionObjectIfAllowed()));
         this.isReified = storageManager.createLazyValue(
                 () -> {
-                    boolean reified = !this.isCompanionObject && isReifiedModificationsNeeded(classOrObject, this.computeSupertypes());
+                    boolean reified = !this.isCompanionObject && classOrObject != null && isReifiedModificationsNeeded(classOrObject, this.computeSupertypes());
                     if (reified) {
                         this.declarationProvider.addReificationModifications();
                     }
@@ -760,7 +756,11 @@ public class LazyClassDescriptor extends ClassDescriptorBase implements ClassDes
         if (KotlinBuiltIns.isSpecialClassWithNoSupertypes(this)) {
             return null;
         }
-        return c.getDescriptorResolver().resolveExternalType(getScopeForMemberDeclarationResolution(), externalType, c.getTrace(), false);
+        KotlinType type = c.getDescriptorResolver().resolveExternalType(getScopeForMemberDeclarationResolution(), externalType, c.getTrace(), false);
+        if (type instanceof ErrorType) {
+            String lol = "";
+        }
+        return type;
     }
 
     public void initializeLambdaDescriptor(

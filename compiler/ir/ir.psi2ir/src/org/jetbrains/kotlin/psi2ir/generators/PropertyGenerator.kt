@@ -173,8 +173,9 @@ class PropertyGenerator(declarationGenerator: DeclarationGenerator) : Declaratio
     }
 
     private fun getPropertyDescriptor(ktProperty: KtProperty): PropertyDescriptor {
-        val variableDescriptor = get(BindingContext.VARIABLE, ktProperty)
-            ?: ReificationContext.getReificationContext<PropertyDescriptor?>(ktProperty, ReificationContext.ContextTypes.DESC)
+        val variableDescriptor =
+            ReificationContext.getReificationContext<PropertyDescriptor?>(ktProperty, ReificationContext.ContextTypes.DESC)
+            ?: get(BindingContext.VARIABLE, ktProperty)
             ?: throw RuntimeException("No ${BindingContext.VARIABLE} for $ktProperty")
         return variableDescriptor as? PropertyDescriptor ?: TODO("not a property: $variableDescriptor")
     }

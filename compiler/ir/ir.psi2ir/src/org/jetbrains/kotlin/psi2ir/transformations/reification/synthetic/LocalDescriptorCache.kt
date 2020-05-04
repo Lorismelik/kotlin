@@ -18,6 +18,7 @@ import org.jetbrains.kotlin.descriptors.impl.PropertyDescriptorImpl
 import org.jetbrains.kotlin.descriptors.impl.PropertyGetterDescriptorImpl
 import org.jetbrains.kotlin.name.Name
 import org.jetbrains.kotlin.psi.*
+import org.jetbrains.kotlin.psi.synthetics.SyntheticClassOrObjectDescriptor
 import org.jetbrains.kotlin.psi2ir.generators.GeneratorContext
 import org.jetbrains.kotlin.psi2ir.transformations.reification.createCodeForAnnotations
 import org.jetbrains.kotlin.psi2ir.transformations.reification.createHiddenTypeReference
@@ -29,11 +30,12 @@ import org.jetbrains.kotlin.resolve.scopes.receivers.ImplicitClassReceiver
 import org.jetbrains.kotlin.resolve.source.toSourceElement
 import org.jetbrains.kotlin.types.KotlinType
 
-class LocalDescriptorCache(val project: Project, val clazz: LazyClassDescriptor, val context: GeneratorContext) {
+class LocalDescriptorCache(val project: Project, val syntheticObject: SyntheticClassOrObjectDescriptor, val context: GeneratorContext) {
+    val clazz = syntheticObject.containingDeclaration as LazyClassDescriptor
     var typesToRegister: List<KotlinType>? = null
     private fun createPropertySource(): KtProperty {
         typesToRegister = ReificationContext.getReificationContext<List<KotlinType>>(
-            clazz.containingDeclaration as ClassDescriptor,
+            clazz,
             ReificationContext.ContextTypes.CACHE
         )
         val index = if (typesToRegister != null) typesToRegister!!.size else 0
@@ -43,7 +45,7 @@ class LocalDescriptorCache(val project: Project, val clazz: LazyClassDescriptor,
         ).apply {
             val source = this.toSourceElement()
             val propertyDescriptor = PropertyDescriptorImpl.create(
-                clazz,
+                syntheticObject,
                 Annotations.EMPTY,
                 Modality.FINAL,
                 Visibilities.PRIVATE,
@@ -59,7 +61,7 @@ class LocalDescriptorCache(val project: Project, val clazz: LazyClassDescriptor,
                 false
             )
 
-            val dispatchReceiverParameter = LazyClassReceiverParameterDescriptor(clazz)
+            val dispatchReceiverParameter = LazyClassReceiverParameterDescriptor(syntheticObject)
             val outType = clazz.computeExternalType(KtPsiFactory(project, false).createType("kotlin.Array<kotlin.reification._D.Cla?>"))
             propertyDescriptor.setType(outType, emptyList(), dispatchReceiverParameter, null)
 
@@ -77,6 +79,8 @@ class LocalDescriptorCache(val project: Project, val clazz: LazyClassDescriptor,
                 null,
                 source
             )
+            // maybe not
+            getter.initialize(outType);
             propertyDescriptor.initialize(getter, null, backingField, delegateField)
             ReificationContext.register(this, ReificationContext.ContextTypes.DESC, propertyDescriptor)
             registerPropertyInit(this.initializer as KtCallExpression)
@@ -97,12 +101,12 @@ class LocalDescriptorCache(val project: Project, val clazz: LazyClassDescriptor,
         )
     }
 
-    fun generateLocalCachePropertyIfNeeded(clazz: ClassDescriptor): KtProperty {
+    fun generateLocalCachePropertyIfNeeded(): KtProperty {
         return ReificationContext.getReificationContext(
-            clazz,
+            syntheticObject,
             ReificationContext.ContextTypes.LOCAL_CACHE_PROPERTY
         ) ?: createPropertySource().also {
-            ReificationContext.register(clazz, ReificationContext.ContextTypes.LOCAL_CACHE_PROPERTY, it)
+            ReificationContext.register(syntheticObject, ReificationContext.ContextTypes.LOCAL_CACHE_PROPERTY, it)
         }
     }
 

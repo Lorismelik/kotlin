@@ -432,12 +432,18 @@ class ClassGenerator(
         if (isReified) {
             addReificationDeclarations(irClass, ktClassOrObject.psiOrParent.project)
         }
+
+        val descriptor = irClass.descriptor
+        if (descriptor is SyntheticClassOrObjectDescriptor && ReificationContext.getReificationContext<List<KotlinType>?>(descriptor.containingDeclaration, ReificationContext.ContextTypes.CACHE) != null) {
+            addReificationLocalCacheDeclarations(irClass, ktClassOrObject.psiOrParent.project)
+        }
         // generate synthetic nested classes (including companion)
         irClass.descriptor
             .unsubstitutedMemberScope
             .getContributedDescriptors(DescriptorKindFilter.CLASSIFIERS, MemberScope.ALL_NAME_FILTER)
             .asSequence()
             .filterIsInstance<SyntheticClassOrObjectDescriptor>()
+            .filter { ReificationContext.getReificationContext<List<KotlinType>?>(irClass.descriptor, ReificationContext.ContextTypes.CACHE) != null || irClass.descriptor.isReified }
             .mapTo(irClass.declarations) { declarationGenerator.generateSyntheticClassOrObject(it.syntheticDeclaration) }
 
         // synthetic functions and properties to classes must be contributed by corresponding lowering
@@ -468,6 +474,24 @@ class ClassGenerator(
                 )!!
             })
     }
+
+    private fun addReificationLocalCacheDeclarations(irClass: IrClass, project: Project) {
+        val syntheticObject = irClass.descriptor  as SyntheticClassOrObjectDescriptor
+        with(
+            LocalDescriptorCache(
+                project,
+                syntheticObject,
+                this.context
+            )
+        ) {
+            val declaration = generateLocalCachePropertyIfNeeded()
+            declarationGenerator.generateClassMemberDeclaration(
+                declaration,
+                irClass
+            )!!
+        }
+    }
+
 
     fun generateEnumEntry(ktEnumEntry: KtEnumEntry): IrEnumEntry {
         val enumEntryDescriptor = getOrFail(BindingContext.CLASS, ktEnumEntry)
