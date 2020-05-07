@@ -36,7 +36,12 @@ object ReificationResolver {
     }
 
     fun resolveLocalDescriptorUsage(type: KotlinType, owner: DeclarationDescriptor) {
-        var scopeOwner: DeclarationDescriptor? = owner
+        val scopeOwner = findClassScopeIfExist(owner)
+        if (scopeOwner != null) registerLocalDescriptorUsage(scopeOwner, type)
+    }
+
+    fun findClassScopeIfExist(initalScope: DeclarationDescriptor) : ClassDescriptor? {
+        var scopeOwner: DeclarationDescriptor? = initalScope
         while (scopeOwner != null && scopeOwner !is ModuleDescriptor && scopeOwner !is PackageFragmentDescriptor) {
             if (scopeOwner is ClassDescriptor) {
                 /*type.arguments.filter { it.type.isTypeParameter() }
@@ -44,12 +49,12 @@ object ReificationResolver {
                         it.type.constructor.declarationDescriptor?.containingDeclaration == scopeOwner
                     }*/
                 if (!scopeOwner.isInner) {
-                    registerLocalDescriptorUsage(scopeOwner, type)
-                    return
+                    return scopeOwner
                 }
             }
             scopeOwner = scopeOwner.containingDeclaration
         }
+        return null
     }
 
     private fun registerLocalDescriptorUsage(cacheOwner: ClassDescriptor, type: KotlinType) {

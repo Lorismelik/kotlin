@@ -57,7 +57,7 @@ fun Generator.getExpressionTypeWithCoercionToUnit(key: KtExpression): KotlinType
     if (key.isUsedAsExpression(context.bindingContext))
         getTypeInferredByFrontend(key)
     else
-        context.builtIns.unitType
+        ReificationContext.getReificationContext<KotlinType?>(key, ReificationContext.ContextTypes.TYPE) ?: context.builtIns.unitType
 
 fun Generator.getExpressionTypeWithCoercionToUnitOrFail(key: KtExpression): KotlinType =
     getExpressionTypeWithCoercionToUnit(key)

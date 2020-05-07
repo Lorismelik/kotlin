@@ -6,14 +6,11 @@
 package org.jetbrains.kotlin.psi2ir.transformations.reification.synthetic
 
 import com.intellij.openapi.project.Project
-import com.intellij.psi.util.PsiTreeUtil
 import org.jetbrains.kotlin.descriptors.*
 import org.jetbrains.kotlin.descriptors.annotations.Annotations
 import org.jetbrains.kotlin.descriptors.impl.*
 import org.jetbrains.kotlin.name.Name
 import org.jetbrains.kotlin.psi.*
-import org.jetbrains.kotlin.psi.synthetics.SyntheticClassOrObjectDescriptor
-import org.jetbrains.kotlin.psi2ir.findSingleFunction
 import org.jetbrains.kotlin.psi2ir.generators.GeneratorContext
 import org.jetbrains.kotlin.psi2ir.transformations.reification.*
 import org.jetbrains.kotlin.resolve.BindingContext
@@ -27,14 +24,11 @@ import org.jetbrains.kotlin.resolve.calls.util.CallMaker
 import org.jetbrains.kotlin.resolve.checkers.PrimitiveNumericComparisonInfo
 import org.jetbrains.kotlin.resolve.lazy.descriptors.LazyClassDescriptor
 import org.jetbrains.kotlin.resolve.reification.ReificationContext
-import org.jetbrains.kotlin.resolve.scopes.receivers.ExpressionReceiver
 import org.jetbrains.kotlin.resolve.scopes.receivers.ImplicitClassReceiver
 import org.jetbrains.kotlin.resolve.source.toSourceElement
 import org.jetbrains.kotlin.types.KotlinType
-import org.jetbrains.kotlin.types.typeUtil.isTypeParameter
-import org.jetbrains.kotlin.utils.addToStdlib.firstIsInstance
 
-class LocalDescriptorCache(val project: Project, val companionObject: ClassDescriptor, val context: GeneratorContext) {
+class LocalDescriptorCache(val project: Project, val companionObject: ClassDescriptor, val generatorContext: GeneratorContext) {
     val clazz = companionObject.containingDeclaration as LazyClassDescriptor
     var openTypes : List<KotlinType>? = null
     var closedTypes : List<KotlinType>? = null
@@ -43,11 +37,11 @@ class LocalDescriptorCache(val project: Project, val companionObject: ClassDescr
         val types = ReificationContext.getReificationContext<List<KotlinType>>(
             clazz,
             ReificationContext.ContextTypes.CACHE
-        )?.groupBy { it.arguments.any{x -> x.type.isTypeParameter()}}
-        openTypes = types?.get(true)
-        closedTypes = types?.get(false)
+        )?.groupBy { isStaticType(it.arguments) }
+        openTypes = types?.get(false)
+        closedTypes = types?.get(true)
         val index = if (closedTypes != null) closedTypes!!.size else 0
-        val text = "private val localDesc = arrayOfNull<kotlin.reification._D.Cla>($index)"
+        val text = "private val localDesc = arrayOfNulls<kotlin.reification._D.Cla>($index)"
         return KtPsiFactory(project, false).createProperty(
             text
         ).apply {
@@ -104,8 +98,8 @@ class LocalDescriptorCache(val project: Project, val companionObject: ClassDescr
         )
         registerIntConstant(
             callExpression.valueArguments.first().getArgumentExpression()!! as KtConstantExpression,
-            context.moduleDescriptor,
-            context.builtIns.intType
+            generatorContext.moduleDescriptor,
+            generatorContext.builtIns.intType
         )
     }
 
@@ -122,7 +116,7 @@ class LocalDescriptorCache(val project: Project, val companionObject: ClassDescr
         val switchText = generateSwitchSource()
         val text = """fun getStaticLocalDesc(pos: kotlin.Int) : kotlin.reification._D.Cla {
             |   if (localDesc[pos] != null) {
-            |       return localDesc[pos]
+            |       return localDesc[pos]!!
             |   }
             |   localDesc[pos] = when(pos) {
             |       $switchText
@@ -146,9 +140,8 @@ class LocalDescriptorCache(val project: Project, val companionObject: ClassDescr
             companionObject.source
         )
         val returnType = clazz.computeExternalType(declaration.typeReference)
-        val paramsDescsParameter = ValueParameterDescriptorImpl(
+        val parameter = ValueParameterDescriptorImpl(
             desc, null, 0, Annotations.EMPTY, Name.identifier("pos"),
-            // array descs of type params is 1 parameter
             clazz.computeExternalType(declaration.valueParameters[0].typeReference),
             declaresDefaultValue = false,
             isCrossinline = false,
@@ -160,7 +153,7 @@ class LocalDescriptorCache(val project: Project, val companionObject: ClassDescr
             null,
             companionObject.thisAsReceiverParameter,
             emptyList(),
-            listOf(paramsDescsParameter),
+            listOf(parameter),
             returnType,
             Modality.FINAL,
             Visibilities.PUBLIC
@@ -175,7 +168,7 @@ class LocalDescriptorCache(val project: Project, val companionObject: ClassDescr
         registerIfCondition(ifExpression, desc)
         registerIfBody(ifExpression, desc)
         registerLocalCacheAssignment(statements[1] as KtBinaryExpression, desc)
-        val returnExpression = ((statements[2] as KtReturnExpression).returnedExpression as KtPostfixExpression)
+        val returnExpression = (statements[2] as KtReturnExpression).returnedExpression as KtPostfixExpression
         ReificationContext.register(returnExpression.baseExpression!!, ReificationContext.ContextTypes.TYPE, desc.returnType!!)
         registerLocalCacheArrayAccess(returnExpression.baseExpression as KtArrayAccessExpression, desc)
     }
@@ -184,12 +177,13 @@ class LocalDescriptorCache(val project: Project, val companionObject: ClassDescr
         val condition = ifExpression.condition as KtBinaryExpression
         val arrayAccessExpression = condition.left as KtArrayAccessExpression
         registerLocalCacheArrayAccess(arrayAccessExpression, desc)
-        registerNull(context, condition.right!!)
+        registerNull(generatorContext, condition.right!!)
     }
 
     private fun registerIfBody(ifExpression: KtIfExpression, desc: SimpleFunctionDescriptorImpl) {
-        val returnStatement = (ifExpression.then as KtBlockExpression).firstStatement as KtReturnExpression
-        registerLocalCacheArrayAccess(returnStatement.returnedExpression as KtArrayAccessExpression, desc)
+        val returnStatement = ((ifExpression.then as KtBlockExpression).firstStatement as KtReturnExpression).returnedExpression!! as KtPostfixExpression
+        ReificationContext.register(returnStatement.baseExpression!!, ReificationContext.ContextTypes.TYPE, desc.returnType!!)
+        registerLocalCacheArrayAccess(returnStatement.baseExpression!! as KtArrayAccessExpression, desc)
     }
 
     private fun registerLocalCacheAssignment(expression: KtBinaryExpression, desc: SimpleFunctionDescriptorImpl) {
@@ -206,9 +200,9 @@ class LocalDescriptorCache(val project: Project, val companionObject: ClassDescr
         whenExpression.entries.forEachIndexed { index, ktEntry ->
             if (!ktEntry.isElse) {
                 val condition = (ktEntry.conditions.first() as KtWhenConditionWithExpression).expression as KtConstantExpression
-                registerIntConstant(condition, context.moduleDescriptor, context.builtIns.intType)
+                registerIntConstant(condition, generatorContext.moduleDescriptor, generatorContext.builtIns.intType)
                 val comparisonInfo =
-                    PrimitiveNumericComparisonInfo(context.builtIns.intType, context.builtIns.intType, context.builtIns.intType)
+                    PrimitiveNumericComparisonInfo(generatorContext.builtIns.intType, generatorContext.builtIns.intType, generatorContext.builtIns.intType)
                 ReificationContext.register(condition, ReificationContext.ContextTypes.PRIMITIVE_NUMERIC_COMPARISON_INFO, comparisonInfo)
                 val descCreatingExpression = ktEntry.expression as KtDotQualifiedExpression
                 val type = closedTypes!![index]
@@ -217,11 +211,11 @@ class LocalDescriptorCache(val project: Project, val companionObject: ClassDescr
                     typeDesc,
                     filterArgumentsForReifiedTypeParams(type.arguments, typeDesc.declaredTypeParameters),
                     desc,
-                    context,
+                    generatorContext,
                     descCreatingExpression
                 )
             } else {
-                registerNull(context, ktEntry.expression!!)
+                registerNull(generatorContext, ktEntry.expression!!)
             }
         }
     }
@@ -233,44 +227,46 @@ class LocalDescriptorCache(val project: Project, val companionObject: ClassDescr
             parameterNameReferenceExpression,
             desc.valueParameters[0]
         )
-        registerStaticLocalCacheCall(declaration.arrayExpression as KtNameReferenceExpression)
+        registerStaticLocalCacheCall(declaration.arrayExpression as KtNameReferenceExpression, companionObject)
     }
 
-    fun registerStaticLocalCacheCall(descriptorCall : KtNameReferenceExpression) {
-        val propertySource = ReificationContext.getReificationContext<KtProperty>(
-            companionObject,
-            ReificationContext.ContextTypes.LOCAL_CACHE_PROPERTY
-        )
-        val propertyDesc = ReificationContext.getReificationContext<PropertyDescriptorImpl>(
-            propertySource,
-            ReificationContext.ContextTypes.DESC
-        )
-        val call = CallMaker.makeCall(
-            descriptorCall,
-            null,
-            null,
-            descriptorCall,
-            emptyList(),
-            Call.CallType.DEFAULT,
-            false
-        )
-        val resolvedCall = ResolvedCallImpl(
-            call,
-            propertyDesc as CallableDescriptor,
-            ImplicitClassReceiver(companionObject),
-            null,
-            ExplicitReceiverKind.NO_EXPLICIT_RECEIVER,
-            null,
-            DelegatingBindingTrace(BindingContext.EMPTY, ""),
-            TracingStrategy.EMPTY,
-            DataFlowInfoForArgumentsImpl(DataFlowInfo.EMPTY, call)
-        )
-        ReificationContext.register(
-            descriptorCall,
-            ReificationContext.ContextTypes.RESOLVED_CALL,
-            resolvedCall
-        )
-        resolvedCall.markCallAsCompleted()
+    companion object {
+        fun registerStaticLocalCacheCall(descriptorCall : KtNameReferenceExpression, companionObject: ClassDescriptor) {
+            val propertySource = ReificationContext.getReificationContext<KtProperty>(
+                companionObject,
+                ReificationContext.ContextTypes.LOCAL_CACHE_PROPERTY
+            )
+            val propertyDesc = ReificationContext.getReificationContext<PropertyDescriptorImpl>(
+                propertySource,
+                ReificationContext.ContextTypes.DESC
+            )
+            val call = CallMaker.makeCall(
+                descriptorCall,
+                null,
+                null,
+                descriptorCall,
+                emptyList(),
+                Call.CallType.DEFAULT,
+                false
+            )
+            val resolvedCall = ResolvedCallImpl(
+                call,
+                propertyDesc as CallableDescriptor,
+                ImplicitClassReceiver(companionObject),
+                null,
+                ExplicitReceiverKind.NO_EXPLICIT_RECEIVER,
+                null,
+                DelegatingBindingTrace(BindingContext.EMPTY, ""),
+                TracingStrategy.EMPTY,
+                DataFlowInfoForArgumentsImpl(DataFlowInfo.EMPTY, call)
+            )
+            ReificationContext.register(
+                descriptorCall,
+                ReificationContext.ContextTypes.RESOLVED_CALL,
+                resolvedCall
+            )
+            resolvedCall.markCallAsCompleted()
+        }
     }
 
     private fun generateSwitchSource(): String {

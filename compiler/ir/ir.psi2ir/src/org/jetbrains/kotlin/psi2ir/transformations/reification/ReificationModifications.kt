@@ -439,6 +439,10 @@ fun findOriginalDescriptor(args: List<TypeProjection>): LazyClassDescriptor? {
     return null;
 }
 
+fun isStaticType(args: List<TypeProjection>) : Boolean {
+    return args.all { !it.type.isTypeParameter() && isStaticType(it.type.arguments) }
+}
+
 fun registerIntsCall(intsCallExpression: KtDotQualifiedExpression, clazz: LazyClassDescriptor, project: Project) {
     val reificationLibReference = clazz.computeExternalType(createHiddenTypeReference(project))
     val candidate =

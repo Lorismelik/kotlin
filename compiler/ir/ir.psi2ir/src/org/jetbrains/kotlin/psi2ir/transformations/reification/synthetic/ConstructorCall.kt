@@ -29,8 +29,10 @@ import org.jetbrains.kotlin.resolve.calls.util.CallMaker
 import org.jetbrains.kotlin.resolve.descriptorUtil.getSuperInterfaces
 import org.jetbrains.kotlin.resolve.lazy.descriptors.LazyClassDescriptor
 import org.jetbrains.kotlin.resolve.reification.ReificationContext
+import org.jetbrains.kotlin.resolve.reification.ReificationResolver
 import org.jetbrains.kotlin.resolve.scopes.receivers.ClassQualifier
 import org.jetbrains.kotlin.resolve.scopes.receivers.ClassValueReceiver
+import org.jetbrains.kotlin.resolve.scopes.receivers.ImplicitClassReceiver
 import org.jetbrains.kotlin.resolve.scopes.utils.findPackage
 import org.jetbrains.kotlin.serialization.deserialization.descriptors.DeserializedSimpleFunctionDescriptor
 import org.jetbrains.kotlin.types.*
@@ -40,9 +42,30 @@ fun createDescriptorArgument(
     descriptor: LazyClassDescriptor,
     containingDeclaration: DeclarationDescriptor,
     context: GeneratorContext,
-    args: List<TypeProjection>,
+    type : KotlinType,
     project: Project
 ): KtValueArgument {
+    val args = type.arguments
+    val classScope = ReificationResolver.findClassScopeIfExist(containingDeclaration)
+    if (classScope != null) {
+        val cache = ReificationContext.getReificationContext<List<KotlinType>?>(classScope, ReificationContext.ContextTypes.CACHE)
+        if  (cache != null) {
+            if (isStaticType(args)) {
+                val cachedStaticTypes = cache.filter{ isStaticType(it.arguments)}
+                return createCachedDescriptorForStaticType(cachedStaticTypes.indexOf(type), project, classScope, context)
+            }
+        }
+    }
+    return createNonCachedDescriptorArgument(descriptor, containingDeclaration, context, args, project)
+}
+
+fun createNonCachedDescriptorArgument(
+    descriptor: LazyClassDescriptor,
+    containingDeclaration: DeclarationDescriptor,
+    context: GeneratorContext,
+    args: List<TypeProjection>,
+    project: Project
+) : KtValueArgument {
     val originalDescriptor = findOriginalDescriptor(args)
     val filteredArgs = filterArgumentsForReifiedTypeParams(args, descriptor.declaredTypeParameters)
     val text = createCodeForDescriptorFactoryMethodCall(
@@ -66,6 +89,31 @@ fun createDescriptorArgument(
     }
 }
 
+fun createCachedDescriptorForStaticType(index: Int, project: Project, descriptor: ClassDescriptor, context: GeneratorContext) : KtValueArgument {
+    return KtPsiFactory(project, false).createArgument("getStaticLocalDesc($index)").apply {
+
+        val callExpression = this.getArgumentExpression() as KtCallExpression
+        val funSource = LocalDescriptorCache(project, descriptor.companionObjectDescriptor!!, context ).generateLocalCacheGetterIfNeeded()
+        val funDesc = ReificationContext.getReificationContext<FunctionDescriptor>(
+            funSource,
+            ReificationContext.ContextTypes.DESC
+        )
+        val call = CallMaker.makeCall(null, null, callExpression)
+        val resolutionCandidate = ResolutionCandidate.create(
+            call, funDesc as CallableDescriptor, ImplicitClassReceiver(descriptor.companionObjectDescriptor!!), ExplicitReceiverKind.NO_EXPLICIT_RECEIVER, null
+        )
+        val resolvedCall = ResolvedCallImpl.create(
+            resolutionCandidate,
+            DelegatingBindingTrace(BindingContext.EMPTY, ""),
+            TracingStrategy.EMPTY,
+            DataFlowInfoForArgumentsImpl(DataFlowInfo.EMPTY, call)
+        )
+        ValueArgumentsToParametersMapper.mapValueArgumentsToParameters(call, TracingStrategy.EMPTY, resolvedCall)
+        ReificationContext.register(callExpression, ReificationContext.ContextTypes.RESOLVED_CALL, resolvedCall)
+        resolvedCall.markCallAsCompleted()
+        registerIntConstant(callExpression.valueArguments.first().getArgumentExpression() as KtConstantExpression, context.moduleDescriptor, context.builtIns.intType)
+    }
+}
 fun registerDescriptorCreatingCall(
     descriptor: LazyClassDescriptor,
     args: List<TypeProjection>,
@@ -291,14 +339,10 @@ fun registerArrayOfResolvedCall(
 
 fun getArrayOfDescriptor(descriptor: LazyClassDescriptor, nulls: Boolean = false): DeserializedSimpleFunctionDescriptor {
     val name = if (nulls) "arrayOfNulls" else "arrayOf"
-    return ReificationContext.getReificationContext(true, ReificationContext.ContextTypes.ARRAY_OF)
-        ?: ReificationContext.register(
-            true,
-            ReificationContext.ContextTypes.ARRAY_OF,
-            descriptor.scopeForClassHeaderResolution.findPackage(Name.identifier("kotlin"))!!.memberScope.getContributedFunctions(
-                Name.identifier(name), NoLookupLocation.FROM_BACKEND
-            ).first()
-        ) as DeserializedSimpleFunctionDescriptor
+    val functions = descriptor.scopeForClassHeaderResolution.findPackage(Name.identifier("kotlin"))!!.memberScope.getContributedFunctions(
+        Name.identifier(name), NoLookupLocation.FROM_BACKEND
+    )
+    return functions.first() as DeserializedSimpleFunctionDescriptor
 }
 
 fun registerStarProjectionDescCall(argExpression: KtDotQualifiedExpression, clazz: LazyClassDescriptor) {

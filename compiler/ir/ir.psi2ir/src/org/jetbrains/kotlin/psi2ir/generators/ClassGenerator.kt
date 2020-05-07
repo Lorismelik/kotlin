@@ -484,15 +484,15 @@ class ClassGenerator(
             )
         ) {
             val propertyDeclaration = generateLocalCachePropertyIfNeeded()
-            declarationGenerator.generateClassMemberDeclaration(
+            irClass.declarations.add(declarationGenerator.generateClassMemberDeclaration(
                 propertyDeclaration,
                 irClass
-            )
+            )!!)
             val staticLocalCache = generateLocalCacheGetterIfNeeded()
-            declarationGenerator.generateClassMemberDeclaration(
+            irClass.declarations.add(declarationGenerator.generateClassMemberDeclaration(
                 staticLocalCache,
                 irClass
-            )
+            )!!)
         }
     }
 

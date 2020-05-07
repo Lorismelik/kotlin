@@ -375,7 +375,7 @@ class StatementGenerator(
                 classDesc,
                 this.scopeOwner,
                 this.context,
-                (resolvedCall.resultingDescriptor as ClassConstructorDescriptorImpl).returnType.arguments,
+                (resolvedCall.resultingDescriptor as ClassConstructorDescriptorImpl).returnType,
                 expression.project
             )
             resolvedCall = (resolvedCall as ResolvedCallImpl).createNewResolvedConstructorCall(
