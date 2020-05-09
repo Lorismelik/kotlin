@@ -9,7 +9,7 @@ import kotlin.reflect.KClass
 abstract class _D(
     val p: Array<Cla>?,
     var id: Int,
-    val pureInstanceCheck: (Any?) -> Boolean,
+    val pureInstanceCheck: (Any?) -> Boolean?,
     val type: KClass<*>? = null,
     val isInterface: Boolean = false
 ) {
@@ -19,10 +19,10 @@ abstract class _D(
     var annotations: Array<Int>? = null
 
     init {
-        hashValue = processHash()
+        hashValue = processHash(type, p)
     }
 
-    private fun processHash() = type.hashCode() * 31 + (p?.contentHashCode() ?: 0) * 31
+    private fun processHash(type: KClass<*>?, p : Array<Cla>?) = type.hashCode() * 31 + (p?.contentHashCode() ?: 0) * 31
 
     override fun hashCode(): Int {
         return hashValue
@@ -70,7 +70,7 @@ abstract class _D(
             return false
         } else {
             println("Pure check $o is ${this.type}")
-            return pureInstanceCheck(o)
+            return pureInstanceCheck(o)!!
         }
     }
 
@@ -131,7 +131,7 @@ abstract class _D(
 
     open class Cla(
         p: Array<Cla>?,
-        pureInstanceCheck: (Any?) -> Boolean,
+        pureInstanceCheck: (Any?) -> Boolean?,
         type: KClass<*>?,
         isInterface: Boolean = false,
         id: Int = -1
@@ -181,6 +181,10 @@ abstract class _D(
                 return desc;
             }
             return o
+        }
+
+        fun tryGetSimpleType(type: KClass<*>) : Cla? {
+            return descTable[type.hashCode() * 31]
         }
     }
 

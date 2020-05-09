@@ -310,21 +310,15 @@ class DescriptorFactoryMethodGenerator(val project: Project, val clazz: LazyClas
             clazz.computeExternalType(createHiddenTypeReference(interfacesExpression.project, "Cla"))
         )
         interfacesExpression.valueArguments.forEachIndexed { index, arg ->
-            val callExpression = (arg.getArgumentExpression() as KtDotQualifiedExpression).selectorExpression as KtCallExpression
-            DescriptorRegisterCall(
-                interfacesExpression.project,
-                clazz,
-                implementedInterfaces!![index],
-                callExpression,
-                containingDesc,
-                context
-            ) {
+            val callExpression = ((arg.getArgumentExpression() as KtBinaryExpression).right as KtDotQualifiedExpression).selectorExpression as KtCallExpression
+            val executor = {
                 registerArrayOfResolvedCall(
                     clazz,
                     callExpression.valueArguments[2].getArgumentExpression() as KtCallExpression,
                     clazz.computeExternalType(createHiddenTypeReference(interfacesExpression.project, "Cla"))
                 )
-            }.createCallDescriptor()
+            }
+            registerSimpleType(arg.getArgumentExpression() as KtBinaryExpression, implementedInterfaces!![index], clazz, containingDesc, executor, context, project)
         }
         val intsRef = interafacesAssignment!!.left as KtDotQualifiedExpression
         registerVarRefExpression(intsRef.receiverExpression)

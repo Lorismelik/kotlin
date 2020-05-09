@@ -276,10 +276,11 @@ class OperatorExpressionGenerator(statementGenerator: StatementGenerator) : Stat
 
     private fun getResultTypeForElvis(expression: KtExpression): KotlinType {
         val binaryExpression = KtPsiUtil.safeDeparenthesize(expression)
-        val expressionType = context.bindingContext.getType(binaryExpression)!!
+        val expressionType = context.bindingContext.getType(binaryExpression)
+            ?: ReificationContext.getReificationContext<KotlinType?>(binaryExpression, ReificationContext.ContextTypes.TYPE)!!
         if (binaryExpression !is KtBinaryExpression || binaryExpression.operationToken != KtTokens.ELVIS) return expressionType
 
-        val inferredType = getResolvedCall(binaryExpression)!!.resultingDescriptor.returnType!!
+        val inferredType = getResolvedCall(binaryExpression)?.resultingDescriptor?.returnType ?: expressionType
 
         // OI has a rather complex bug with constraint system for special call for '?:' that breaks IR-based back-ends.
         // In NI this bug is fixed.

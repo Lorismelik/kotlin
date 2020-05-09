@@ -1,21 +1,27 @@
 package org.jetbrains.kotlin.psi2ir.transformations.reification
 
+import com.intellij.lang.ASTFactory
 import com.intellij.openapi.project.Project
 import com.intellij.psi.util.PsiTreeUtil
+import org.jetbrains.kotlin.KtNodeTypes
 import org.jetbrains.kotlin.descriptors.*
 import org.jetbrains.kotlin.incremental.KotlinLookupLocation
+import org.jetbrains.kotlin.lexer.KtTokens
 import org.jetbrains.kotlin.name.Name
 import org.jetbrains.kotlin.psi.*
 import org.jetbrains.kotlin.psi2ir.findSingleFunction
 import org.jetbrains.kotlin.psi2ir.generators.GeneratorContext
+import org.jetbrains.kotlin.psi2ir.transformations.reification.synthetic.DescriptorRegisterCall
 import org.jetbrains.kotlin.psi2ir.transformations.reification.synthetic.createTypeParametersDescriptorsSource
 import org.jetbrains.kotlin.resolve.BindingContext
 import org.jetbrains.kotlin.resolve.DelegatingBindingTrace
+import org.jetbrains.kotlin.resolve.PossiblyBareType
 import org.jetbrains.kotlin.resolve.calls.ValueArgumentsToParametersMapper
 import org.jetbrains.kotlin.resolve.calls.model.DataFlowInfoForArgumentsImpl
 import org.jetbrains.kotlin.resolve.calls.model.ResolvedCallImpl
 import org.jetbrains.kotlin.resolve.calls.smartcasts.DataFlowInfo
 import org.jetbrains.kotlin.resolve.calls.tasks.ExplicitReceiverKind
+import org.jetbrains.kotlin.resolve.calls.tasks.ResolutionCandidate
 import org.jetbrains.kotlin.resolve.calls.tasks.TracingStrategy
 import org.jetbrains.kotlin.resolve.calls.util.CallMaker
 import org.jetbrains.kotlin.resolve.constants.CompileTimeConstant
@@ -26,6 +32,7 @@ import org.jetbrains.kotlin.resolve.descriptorUtil.getSuperClassOrAny
 import org.jetbrains.kotlin.resolve.lazy.descriptors.LazyClassDescriptor
 import org.jetbrains.kotlin.resolve.reification.ReificationContext
 import org.jetbrains.kotlin.resolve.scopes.DescriptorKindFilter
+import org.jetbrains.kotlin.resolve.scopes.receivers.ClassQualifier
 import org.jetbrains.kotlin.resolve.scopes.receivers.ExpressionReceiver
 import org.jetbrains.kotlin.resolve.scopes.receivers.ImplicitClassReceiver
 import org.jetbrains.kotlin.resolve.scopes.utils.findPackage
@@ -33,7 +40,9 @@ import org.jetbrains.kotlin.serialization.deserialization.descriptors.Deserializ
 import org.jetbrains.kotlin.serialization.deserialization.descriptors.DeserializedPropertyDescriptor
 import org.jetbrains.kotlin.serialization.deserialization.descriptors.DeserializedSimpleFunctionDescriptor
 import org.jetbrains.kotlin.types.*
+import org.jetbrains.kotlin.types.expressions.DoubleColonLHS
 import org.jetbrains.kotlin.types.typeUtil.*
+import org.jetbrains.kotlin.utils.addToStdlib.firstIsInstance
 import kotlin.reification._D
 
 fun createHiddenTypeReference(project: Project, typeName: String? = null): KtTypeReference {
@@ -133,9 +142,33 @@ fun createSimpleTypeRegistrationSource(type: KotlinType): String {
         val isInterface = if (type.isInterface()) "true" else "false"
         val typeRef = createTextTypeReferenceWithStarProjection(type.asSimpleType())
         append(
-            "kotlin.reification._D.Man.register({it is $typeRef}, ${type.constructor} :: class, null, $superType, $implementedInterfaces, $isInterface)"
+            "kotlin.reification._D.Man.tryGetSimpleType(${type.constructor} :: class) ?: kotlin.reification._D.Man.register({it is $typeRef}, ${type.constructor} :: class, null, $superType, $implementedInterfaces, $isInterface)"
         )
     }
+}
+
+fun registerSimpleType(expression: KtBinaryExpression,
+                       type: KotlinType,
+                       descriptor: LazyClassDescriptor,
+                       containingDeclaration: DeclarationDescriptor,
+                       paramterArrayExecutor: () -> Unit,
+                       context: GeneratorContext,
+                       project: Project) {
+    val fullCreateExpression = (expression.right as KtDotQualifiedExpression).selectorExpression as KtCallExpression
+    val tryGetCachedDescExpression = (expression.left as KtDotQualifiedExpression).selectorExpression as KtCallExpression
+    ReificationContext.register(expression, ReificationContext.ContextTypes.TYPE, descriptor.computeExternalType(createHiddenTypeReference(project, "Cla")))
+    registerManagerFunctionCall("tryGetSimpleType", tryGetCachedDescExpression, descriptor, project)
+    registerReflectionReference(tryGetCachedDescExpression.valueArguments.first().getArgumentExpression() as KtClassLiteralExpression, type, descriptor, project)
+    DescriptorRegisterCall(
+        project,
+        descriptor,
+        type,
+        fullCreateExpression,
+        containingDeclaration,
+        context
+    ) {
+        paramterArrayExecutor.invoke()
+    }.createCallDescriptor()
 }
 
 fun registerNull(context: GeneratorContext, nullExpression: KtExpression) {
@@ -147,6 +180,14 @@ fun registerNull(context: GeneratorContext, nullExpression: KtExpression) {
         ReificationContext.ContextTypes.TYPE,
         context.builtIns.nullableNothingType
     )
+}
+
+fun registerReflectionReference(expression: KtClassLiteralExpression, type: KotlinType, clazz: LazyClassDescriptor, project: Project) {
+    val ktArgument = expression.receiverExpression!!
+    val lhs = DoubleColonLHS.Type(type, PossiblyBareType.type(type))
+    ReificationContext.register(ktArgument, ReificationContext.ContextTypes.REFLECTION_REF, lhs)
+    val returnType = clazz.computeExternalType(KtPsiFactory(project, false).createType("kotlin.reflect.KClass<${type.constructor}>"))
+    ReificationContext.register(expression, ReificationContext.ContextTypes.TYPE, returnType)
 }
 
 //desc
@@ -529,4 +570,30 @@ fun registerAnnotationsCall(annotationsCallExpression: KtDotQualifiedExpression,
         candidate.returnType
     )
     intsResolvedCall.markCallAsCompleted()
+}
+
+fun registerManagerFunctionCall(functionName: String, callExpression: KtCallExpression, descriptor: LazyClassDescriptor, project: Project) {
+    val functionDescriptor = descriptor.computeExternalType(createHiddenTypeReference(project, "Man"))
+        .memberScope.findSingleFunction(Name.identifier("$functionName"))
+    val classReceiverReferenceExpression = KtNameReferenceExpression(ASTFactory.composite(KtNodeTypes.REFERENCE_EXPRESSION).apply {
+        rawAddChildren(ASTFactory.leaf(KtTokens.IDENTIFIER, "Man"))
+    })
+    val explicitReceiver = ClassQualifier(classReceiverReferenceExpression, functionDescriptor.containingDeclaration as ClassDescriptor)
+    ReificationContext.register(
+        classReceiverReferenceExpression,
+        ReificationContext.ContextTypes.DESC,
+        functionDescriptor.containingDeclaration as ClassDescriptor
+    )
+    val call = CallMaker.makeCall(callExpression, explicitReceiver, (callExpression.parent as KtDotQualifiedExpression).operationTokenNode, callExpression, callExpression.valueArguments)
+    val resolutionCandidate = ResolutionCandidate.create(
+        call, functionDescriptor, explicitReceiver.classValueReceiver, ExplicitReceiverKind.NO_EXPLICIT_RECEIVER, null
+    )
+    val resolvedCall = ResolvedCallImpl.create(
+        resolutionCandidate,
+        DelegatingBindingTrace(BindingContext.EMPTY, ""),
+        TracingStrategy.EMPTY,
+        DataFlowInfoForArgumentsImpl(DataFlowInfo.EMPTY, call)
+    )
+    ValueArgumentsToParametersMapper.mapValueArgumentsToParameters(call, TracingStrategy.EMPTY, resolvedCall)
+    ReificationContext.register(callExpression, ReificationContext.ContextTypes.RESOLVED_CALL, resolvedCall)
 }

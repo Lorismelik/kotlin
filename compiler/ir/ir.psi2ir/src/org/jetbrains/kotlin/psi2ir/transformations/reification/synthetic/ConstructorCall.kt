@@ -114,6 +114,7 @@ fun createCachedDescriptorForStaticType(index: Int, project: Project, descriptor
         registerIntConstant(callExpression.valueArguments.first().getArgumentExpression() as KtConstantExpression, context.moduleDescriptor, context.builtIns.intType)
     }
 }
+
 fun registerDescriptorCreatingCall(
     descriptor: LazyClassDescriptor,
     args: List<TypeProjection>,
@@ -197,36 +198,23 @@ fun registerParamsDescsCreating(
         val argExpression = ktValueArg.getArgumentExpression()!!
         when {
             args[index].isStarProjection -> registerStarProjectionDescCall(argExpression as KtDotQualifiedExpression, descriptor)
+            // Try to create desc for simple type
+            argExpression is KtBinaryExpression -> {
+                val executor = { registerNull(context, ((argExpression.right as KtDotQualifiedExpression).selectorExpression as KtCallExpression).valueArguments[2].getArgumentExpression()!!) }
+                registerSimpleType(argExpression, args[index].type, descriptor, containingDeclaration, executor, context, arguments.project)
+            }
             argExpression is KtDotQualifiedExpression -> {
-                val callExpression = argExpression.selectorExpression!! as KtCallExpression
-                // Try to create desc for reified type
-                if (callExpression.calleeExpression!!.textMatches("createTD")) {
-                    val reifiedType =
-                        args.first { (it.type.constructor.declarationDescriptor as? ClassDescriptor)?.name?.identifier == argExpression.receiverExpression.text }
-                            .type
-                    val reifiedTypeDesc = reifiedType.constructor.declarationDescriptor as LazyClassDescriptor
-                    registerDescriptorCreatingCall(
-                        reifiedTypeDesc,
-                        filterArgumentsForReifiedTypeParams(reifiedType.arguments, reifiedTypeDesc.declaredTypeParameters),
-                        containingDeclaration,
-                        context,
-                        argExpression,
-                        originalDescriptor,
-                        originalDescriptorParamsArray
-                    )
-                    // Try to create desc for simple type
-                } else {
-                    DescriptorRegisterCall(
-                        arguments.project,
-                        descriptor,
-                        args[index].type,
-                        callExpression,
-                        containingDeclaration,
-                        context
-                    ) {
-                        registerNull(context, callExpression.valueArguments[2].getArgumentExpression()!!)
-                    }.createCallDescriptor()
-                }
+                 val reifiedType = args[index].type
+                 val reifiedTypeDesc = reifiedType.constructor.declarationDescriptor as LazyClassDescriptor
+                 registerDescriptorCreatingCall(
+                     reifiedTypeDesc,
+                     filterArgumentsForReifiedTypeParams(reifiedType.arguments, reifiedTypeDesc.declaredTypeParameters),
+                     containingDeclaration,
+                     context,
+                     argExpression,
+                     originalDescriptor,
+                     originalDescriptorParamsArray
+                 )
             }
             argExpression is KtArrayAccessExpression -> {
                 registerTemplateParametersOrAnnotations(
