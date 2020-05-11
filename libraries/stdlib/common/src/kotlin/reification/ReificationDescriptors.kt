@@ -9,7 +9,6 @@ import kotlin.reflect.KClass
 abstract class _D(
     val p: Array<Cla>?,
     var id: Int,
-    val pureInstanceCheck: (Any?) -> Boolean?,
     val type: KClass<*>? = null,
     val isInterface: Boolean = false
 ) {
@@ -17,6 +16,7 @@ abstract class _D(
     var father: Cla? = null
     var ints: Array<Cla>? = null
     var annotations: Array<Int>? = null
+    var pureInstanceCheck: ((Any?) -> Boolean)? = null
 
     init {
         hashValue = processHash(type, p)
@@ -70,7 +70,7 @@ abstract class _D(
             return false
         } else {
             println("Pure check $o is ${this.type}")
-            return pureInstanceCheck(o)!!
+            return (pureInstanceCheck!!)(o)
         }
     }
 
@@ -97,7 +97,7 @@ abstract class _D(
             val thisBound = createBounds(annotations[0], this as Cla)
             val thatBound = createBounds(annotations[1], o)
             if (!thatBound.first.isInstance(thisBound.first) || !thisBound.second.isInstance(thatBound.second)) {
-                println("Bounds not equal for ${o.type} is ${this.type}")
+                println("Bounds not equal for ${o.type} is ${this.type} with annotations ${annotations[1]} and ${annotations[0]}")
                 return false
             }
             return true
@@ -131,11 +131,10 @@ abstract class _D(
 
     open class Cla(
         p: Array<Cla>?,
-        pureInstanceCheck: (Any?) -> Boolean?,
         type: KClass<*>?,
         isInterface: Boolean = false,
         id: Int = -1
-    ) : _D(p, id, pureInstanceCheck, type, isInterface) {
+    ) : _D(p, id, type, isInterface) {
         private var new = true
 
         fun firstReg(): Boolean {
@@ -151,9 +150,9 @@ abstract class _D(
     object Man {
         private val descTable: HashMap<Int, Cla> = HashMap(101, 0.75f)
         var countId = 1
-        val anyDesc = _D.Cla(null, { true }, Any::class)
-        val nothingDesc = _D.Cla(null, { it is Nothing? }, Nothing::class)
-        val starProjection = _D.Cla(null, { true }, null)
+        val anyDesc = register( {true},  Any::class)
+        val nothingDesc = register( {false},  Nothing::class)
+        val starProjection = register(  null,  null)
 
         init {
             anyDesc.id = countId
@@ -163,14 +162,14 @@ abstract class _D(
         }
 
         fun register(
-            pureCheck: (Any?) -> Boolean,
-            type: KClass<*>,
+            pureCheck: ((Any?) -> Boolean)? = null,
+            type: KClass<*>? = null,
             p: Array<Cla>? = null,
             father: Cla? = null,
             ints: Array<Cla>? = null,
             isInterface: Boolean = false
         ): Cla {
-            val desc = Cla(p, pureCheck, type, isInterface)
+            val desc = Cla(p, type, isInterface)
             val hashCode = desc.hashCode()
             val o = descTable[hashCode]
             if (o == null) {
@@ -178,6 +177,7 @@ abstract class _D(
                 descTable[hashCode] = desc;
                 desc.father = father
                 desc.ints = ints
+                desc.pureInstanceCheck = pureCheck
                 return desc;
             }
             return o
@@ -194,8 +194,8 @@ abstract class _D(
 
     enum class Variance() {
         INVARIANT,
-        OUT,
         IN,
+        OUT,
         BIVARIANT
     }
 }

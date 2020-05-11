@@ -53,6 +53,7 @@ class DescriptorFactoryMethodGenerator(val project: Project, val clazz: LazyClas
     var interafacesAssignment: KtBinaryExpression? = null
     var implementedInterfaces: List<KotlinType>? = null
     var annotationsAssignment: KtBinaryExpression? = null
+    var instanceCheckAssignment: KtBinaryExpression? = null
 
     private fun createByFactory(): KtNamedFunction {
         val typeRef = createTextTypeReferenceWithStarProjection(this.clazz.defaultType)
@@ -60,11 +61,12 @@ class DescriptorFactoryMethodGenerator(val project: Project, val clazz: LazyClas
         val intsDescs = interfacesDescriptorsRegisteringCode()
         val annotations = createCodeForAnnotations(clazz)
         val newText = """fun createTD(p: Array<kotlin.reification._D.Cla>?): kotlin.reification._D.Cla { 
-                |   val typeDesc = kotlin.reification._D.Man.register({it is $typeRef}, ${this.clazz.defaultType.constructor} :: class, p)
+                |   val typeDesc = kotlin.reification._D.Man.register(null, ${this.clazz.defaultType.constructor} :: class, p)
                 |   if (typeDesc.firstReg()) {
                 |       typeDesc.father = $fatherDescriptor
                 |       typeDesc.ints = arrayOf<kotlin.reification._D.Cla>($intsDescs)
                 |       typeDesc.annotations = arrayOf<Int>($annotations)
+                |       typeDesc.pureInstanceCheck = {it is $typeRef}
                 |   }
                 |   return typeDesc
                 |}""".trimMargin()
@@ -77,12 +79,13 @@ class DescriptorFactoryMethodGenerator(val project: Project, val clazz: LazyClas
             supertypeAssignment = (ifExpression!!.then as KtBlockExpression).firstStatement as KtBinaryExpression
             interafacesAssignment = (ifExpression!!.then as KtBlockExpression).statements[1] as KtBinaryExpression
             annotationsAssignment = (ifExpression!!.then as KtBlockExpression).statements[2] as KtBinaryExpression
+            instanceCheckAssignment = (ifExpression!!.then as KtBlockExpression).statements[3] as KtBinaryExpression
             returnExpression = PsiTreeUtil.findChildOfType(statements[2], KtNameReferenceExpression::class.java)
             registerCall = PsiTreeUtil.findChildOfType(statements[0], KtCallExpression::class.java)
             val valueArgList = PsiTreeUtil.findChildOfType(statements[0], KtValueArgumentList::class.java)
-            val pureCheckExpression = PsiTreeUtil.findChildOfType(valueArgList!!.arguments[0], KtIsExpression::class.java)!!
+            val pureCheckExpression = PsiTreeUtil.findChildOfType(instanceCheckAssignment, KtIsExpression::class.java)!!
             ReificationContext.register(pureCheckExpression, ReificationContext.ContextTypes.REIFICATION_CONTEXT, true)
-            parameterArrayArgumentReference = PsiTreeUtil.findChildOfType(valueArgList.arguments[2], KtNameReferenceExpression::class.java)
+            parameterArrayArgumentReference = PsiTreeUtil.findChildOfType(valueArgList!!.arguments[2], KtNameReferenceExpression::class.java)
         }
     }
 
@@ -190,6 +193,7 @@ class DescriptorFactoryMethodGenerator(val project: Project, val clazz: LazyClas
             registerSupertypeSetting(it)
             registerIntsSetting(it)
             registerAnnotationsSetting()
+            registerInstanceCheckSetting(it)
             registerVarRefExpression()
         }
     }
@@ -211,8 +215,9 @@ class DescriptorFactoryMethodGenerator(val project: Project, val clazz: LazyClas
         registerFatherDescriptor(supertypeAssignment!!.right!!, containingDesc)
         val fatherRef = supertypeAssignment!!.left as KtDotQualifiedExpression
         registerVarRefExpression(fatherRef.receiverExpression)
-        registerFatherCall(fatherRef, clazz, supertypeAssignment!!.project)
+        registerDescPropertyCall(fatherRef, clazz, "father", supertypeAssignment!!.project)
     }
+
 
     private fun registerIfCondition() {
         val candidateDesc = clazz.computeExternalType(createHiddenTypeReference(ifExpression!!.project, "Cla"))
@@ -322,7 +327,7 @@ class DescriptorFactoryMethodGenerator(val project: Project, val clazz: LazyClas
         }
         val intsRef = interafacesAssignment!!.left as KtDotQualifiedExpression
         registerVarRefExpression(intsRef.receiverExpression)
-        registerIntsCall(intsRef, clazz, supertypeAssignment!!.project)
+        registerDescPropertyCall(intsRef, clazz, "ints", supertypeAssignment!!.project)
     }
 
     private fun registerAnnotationsSetting() {
@@ -346,6 +351,14 @@ class DescriptorFactoryMethodGenerator(val project: Project, val clazz: LazyClas
 
         val annotationsRef = annotationsAssignment!!.left as KtDotQualifiedExpression
         registerVarRefExpression(annotationsRef.receiverExpression)
-        registerAnnotationsCall(annotationsRef, clazz, annotationsAssignment!!.project)
+        registerDescPropertyCall(annotationsRef, clazz, "annotations", annotationsAssignment!!.project)
+    }
+
+    private fun registerInstanceCheckSetting(containingDesc: SimpleFunctionDescriptorImpl) {
+        val lambdaExpression = instanceCheckAssignment!!.right!! as KtLambdaExpression
+        val pureInstanceCheckRef = instanceCheckAssignment!!.left as KtDotQualifiedExpression
+        registerPureCheckLambda(lambdaExpression, this.clazz.defaultType, containingDesc, clazz, lambdaExpression.project)
+        registerVarRefExpression(pureInstanceCheckRef.receiverExpression)
+        registerDescPropertyCall(pureInstanceCheckRef, clazz, "pureInstanceCheck", instanceCheckAssignment!!.project)
     }
 }

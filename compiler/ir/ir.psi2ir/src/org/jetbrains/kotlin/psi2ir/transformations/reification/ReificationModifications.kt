@@ -5,6 +5,8 @@ import com.intellij.openapi.project.Project
 import com.intellij.psi.util.PsiTreeUtil
 import org.jetbrains.kotlin.KtNodeTypes
 import org.jetbrains.kotlin.descriptors.*
+import org.jetbrains.kotlin.descriptors.annotations.Annotations
+import org.jetbrains.kotlin.descriptors.impl.AnonymousFunctionDescriptor
 import org.jetbrains.kotlin.incremental.KotlinLookupLocation
 import org.jetbrains.kotlin.lexer.KtTokens
 import org.jetbrains.kotlin.name.Name
@@ -36,6 +38,7 @@ import org.jetbrains.kotlin.resolve.scopes.receivers.ClassQualifier
 import org.jetbrains.kotlin.resolve.scopes.receivers.ExpressionReceiver
 import org.jetbrains.kotlin.resolve.scopes.receivers.ImplicitClassReceiver
 import org.jetbrains.kotlin.resolve.scopes.utils.findPackage
+import org.jetbrains.kotlin.resolve.source.KotlinSourceElement
 import org.jetbrains.kotlin.serialization.deserialization.descriptors.DeserializedClassDescriptor
 import org.jetbrains.kotlin.serialization.deserialization.descriptors.DeserializedPropertyDescriptor
 import org.jetbrains.kotlin.serialization.deserialization.descriptors.DeserializedSimpleFunctionDescriptor
@@ -360,48 +363,6 @@ fun registerResolvedCallForParameter(referenceExpression: KtNameReferenceExpress
     ReificationContext.register(referenceExpression, ReificationContext.ContextTypes.RESOLVED_CALL, resolvedCall)
 }
 
-fun registerFatherCall(fatherCallExpression: KtDotQualifiedExpression, clazz: LazyClassDescriptor, project: Project) {
-    val returnType = clazz.computeExternalType(createHiddenTypeReference(project, "Cla"))
-    val explicitReceiver = ExpressionReceiver.create(
-        fatherCallExpression.receiverExpression as KtNameReferenceExpression,
-        returnType,
-        BindingContext.EMPTY
-    )
-    val call = CallMaker.makeCall(
-        fatherCallExpression.receiverExpression as KtNameReferenceExpression,
-        explicitReceiver,
-        fatherCallExpression.operationTokenNode,
-        fatherCallExpression.selectorExpression,
-        emptyList(),
-        Call.CallType.DEFAULT,
-        false
-    )
-    val candidate =
-        returnType.memberScope.getContributedDescriptors(DescriptorKindFilter.ALL).first { x -> x.name.identifier == "father" } as DeserializedPropertyDescriptor
-    val fatherDescriptorResolvedCall = ResolvedCallImpl(
-        call,
-        candidate,
-        explicitReceiver,
-        null,
-        ExplicitReceiverKind.DISPATCH_RECEIVER,
-        null,
-        DelegatingBindingTrace(BindingContext.EMPTY, ""),
-        TracingStrategy.EMPTY,
-        DataFlowInfoForArgumentsImpl(DataFlowInfo.EMPTY, call)
-    )
-    ReificationContext.register(
-        fatherCallExpression.selectorExpression!!,
-        ReificationContext.ContextTypes.RESOLVED_CALL,
-        fatherDescriptorResolvedCall
-    )
-    ReificationContext.register(
-        fatherCallExpression,
-        ReificationContext.ContextTypes.TYPE,
-        candidate.returnType
-    )
-    fatherDescriptorResolvedCall.markCallAsCompleted()
-}
-
 
 fun registerAccessToTypeParameter(
     arrayAccessExpression: KtArrayAccessExpression,
@@ -484,54 +445,45 @@ fun isStaticType(args: List<TypeProjection>) : Boolean {
     return args.all { !it.type.isTypeParameter() && isStaticType(it.type.arguments) }
 }
 
-fun registerIntsCall(intsCallExpression: KtDotQualifiedExpression, clazz: LazyClassDescriptor, project: Project) {
-    val reificationLibReference = clazz.computeExternalType(createHiddenTypeReference(project))
-    val candidate =
-        reificationLibReference.memberScope.getContributedDescriptors(DescriptorKindFilter.ALL).first { x -> x.name.identifier == "ints" } as DeserializedPropertyDescriptor
-    val returnType = candidate.returnType
-    val explicitReceiver = ExpressionReceiver.create(
-        intsCallExpression.receiverExpression as KtNameReferenceExpression,
-        returnType,
-        BindingContext.EMPTY
+fun registerPureCheckLambda(lambdaExpression: KtLambdaExpression, typeRef : KotlinType, containingDeclaration: DeclarationDescriptor, clazz: LazyClassDescriptor, project: Project) {
+    val isExpression = PsiTreeUtil.findChildOfType(lambdaExpression, KtIsExpression::class.java)
+    ReificationContext.register(
+        lambdaExpression.bodyExpression!!.statements.last(),
+        ReificationContext.ContextTypes.REIFICATION_CONTEXT,
+        true
     )
-    val call = CallMaker.makeCall(
-        intsCallExpression.receiverExpression as KtNameReferenceExpression,
-        explicitReceiver,
-        intsCallExpression.operationTokenNode,
-        intsCallExpression.selectorExpression,
-        emptyList(),
-        Call.CallType.DEFAULT,
+    val lambdaReturnType = clazz.computeExternalType(createHiddenTypeReference(project, "Man"))
+        .memberScope.findSingleFunction(Name.identifier("register")).valueParameters[0].type
+    ReificationContext.register(lambdaExpression, ReificationContext.ContextTypes.TYPE, lambdaReturnType)
+    ReificationContext.register(isExpression!!.typeReference!!, ReificationContext.ContextTypes.TYPE, typeRef)
+
+    val lambdaSource = lambdaExpression.functionLiteral
+    val lambdaDescriptor = AnonymousFunctionDescriptor(
+        containingDeclaration,
+        Annotations.EMPTY,
+        CallableMemberDescriptor.Kind.DECLARATION,
+        KotlinSourceElement(lambdaSource as KtElement),
         false
     )
 
-    val intsResolvedCall = ResolvedCallImpl(
-        call,
-        candidate,
-        explicitReceiver,
-        null,
-        ExplicitReceiverKind.DISPATCH_RECEIVER,
-        null,
-        DelegatingBindingTrace(BindingContext.EMPTY, ""),
-        TracingStrategy.EMPTY,
-        DataFlowInfoForArgumentsImpl(DataFlowInfo.EMPTY, call)
+    clazz.initializeLambdaDescriptor(
+        containingDeclaration,
+        lambdaSource,
+        lambdaDescriptor,
+        lambdaReturnType,
+        DelegatingBindingTrace(BindingContext.EMPTY, "")
     )
-    ReificationContext.register(
-        intsCallExpression.selectorExpression!!,
-        ReificationContext.ContextTypes.RESOLVED_CALL,
-        intsResolvedCall
+    lambdaDescriptor.setReturnType(lambdaReturnType.arguments.last().type)
+    ReificationContext.register(lambdaSource, ReificationContext.ContextTypes.DESC, lambdaDescriptor)
+    registerResolvedCallForParameter(
+        isExpression.leftHandSide as KtNameReferenceExpression,
+        lambdaDescriptor.valueParameters[0]
     )
-    ReificationContext.register(
-        intsCallExpression,
-        ReificationContext.ContextTypes.TYPE,
-        candidate.returnType
-    )
-    intsResolvedCall.markCallAsCompleted()
 }
-
-fun registerAnnotationsCall(annotationsCallExpression: KtDotQualifiedExpression, clazz: LazyClassDescriptor, project: Project) {
+fun registerDescPropertyCall(annotationsCallExpression: KtDotQualifiedExpression, clazz: LazyClassDescriptor, propertyName: String, project: Project) {
     val reificationLibReference = clazz.computeExternalType(createHiddenTypeReference(project))
     val candidate =
-        reificationLibReference.memberScope.getContributedDescriptors(DescriptorKindFilter.ALL).first { x -> x.name.identifier == "annotations" } as DeserializedPropertyDescriptor
+        reificationLibReference.memberScope.getContributedDescriptors(DescriptorKindFilter.ALL).first { x -> x.name.identifier == propertyName } as DeserializedPropertyDescriptor
     val returnType = candidate.returnType
     val explicitReceiver = ExpressionReceiver.create(
         annotationsCallExpression.receiverExpression as KtNameReferenceExpression,

@@ -8,7 +8,7 @@ package org.jetbrains.kotlin.psi2ir.transformations.reification.synthetic
 import com.intellij.psi.util.PsiTreeUtil
 import org.jetbrains.kotlin.psi.*
 import org.jetbrains.kotlin.psi2ir.transformations.reification.createHiddenTypeReference
-import org.jetbrains.kotlin.psi2ir.transformations.reification.registerFatherCall
+import org.jetbrains.kotlin.psi2ir.transformations.reification.registerDescPropertyCall
 import org.jetbrains.kotlin.resolve.BindingContext
 import org.jetbrains.kotlin.resolve.DelegatingBindingTrace
 import org.jetbrains.kotlin.resolve.calls.model.DataFlowInfoForArgumentsImpl
@@ -38,7 +38,7 @@ fun createSuperCallArgument(
 
 fun registerFatherDescriptorCallAndArgumentType(superCallArgument: KtValueArgument, descriptor: LazyClassDescriptor) {
     val fatherDescriptorCall = PsiTreeUtil.findChildOfType(superCallArgument, KtDotQualifiedExpression::class.java)!!
-    registerFatherCall(fatherDescriptorCall, descriptor, superCallArgument.project)
+    registerDescPropertyCall(fatherDescriptorCall, descriptor, "father", superCallArgument.project)
 }
 
 fun registerDescriptorCall(superCallArgument: KtValueArgument, clazzDescriptor: LazyClassDescriptor) {

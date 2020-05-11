@@ -24,6 +24,7 @@ import org.jetbrains.kotlin.psi2ir.transformations.reification.registerResolvedC
 import org.jetbrains.kotlin.psi2ir.transformations.reification.registerManagerFunctionCall
 import org.jetbrains.kotlin.psi2ir.transformations.reification.registerSimpleType
 import org.jetbrains.kotlin.psi2ir.transformations.reification.registerReflectionReference
+import org.jetbrains.kotlin.psi2ir.transformations.reification.registerPureCheckLambda
 import org.jetbrains.kotlin.resolve.BindingContext
 import org.jetbrains.kotlin.resolve.DelegatingBindingTrace
 import org.jetbrains.kotlin.resolve.PossiblyBareType
@@ -66,40 +67,12 @@ class DescriptorRegisterCall(
         // register 'register' call
         registerManagerFunctionCall("register", registerCall, clazz, project)
         // 1 argument pureCheck
-        val lambdaExpression = PsiTreeUtil.findChildOfType(registerCall.valueArguments[0], KtLambdaExpression::class.java)
-        val isExpression = PsiTreeUtil.findChildOfType(lambdaExpression, KtIsExpression::class.java)
-        ReificationContext.register(
-            lambdaExpression!!.bodyExpression!!.statements.last(),
-            ReificationContext.ContextTypes.REIFICATION_CONTEXT,
-            true
-        )
-        val lambdaReturnType = clazz.computeExternalType(createHiddenTypeReference(project, "Man"))
-            .memberScope.findSingleFunction(Name.identifier("register")).valueParameters[0].type
-        ReificationContext.register(lambdaExpression, ReificationContext.ContextTypes.TYPE, lambdaReturnType)
-        ReificationContext.register(isExpression!!.typeReference!!, ReificationContext.ContextTypes.TYPE, typeRef)
-
-        val lambdaSource = lambdaExpression.functionLiteral
-        val lambdaDescriptor = AnonymousFunctionDescriptor(
-            containingDeclaration,
-            Annotations.EMPTY,
-            CallableMemberDescriptor.Kind.DECLARATION,
-            KotlinSourceElement(lambdaSource as KtElement),
-            false
-        )
-
-        clazz.initializeLambdaDescriptor(
-            containingDeclaration,
-            lambdaSource,
-            lambdaDescriptor,
-            lambdaReturnType,
-            DelegatingBindingTrace(BindingContext.EMPTY, "")
-        )
-        lambdaDescriptor.setReturnType(lambdaReturnType.arguments.last().type)
-        ReificationContext.register(lambdaSource, ReificationContext.ContextTypes.DESC, lambdaDescriptor)
-        registerResolvedCallForParameter(
-            isExpression.leftHandSide as KtNameReferenceExpression,
-            lambdaDescriptor.valueParameters[0]
-        )
+        if ( registerCall.valueArguments[0].getArgumentExpression() !is KtConstantExpression) {
+            val lambdaExpression = PsiTreeUtil.findChildOfType(registerCall.valueArguments[0], KtLambdaExpression::class.java)
+            registerPureCheckLambda(lambdaExpression!!, typeRef, containingDeclaration, clazz, project)
+        } else {
+            registerNull(context, registerCall.valueArguments[0].getArgumentExpression()!!)
+        }
         //val param =
         //    if (containingDeclaration is SimpleFunctionDescriptor && containingDeclaration.name.identifier == "createTD") containingDeclaration.valueParameters.first() else null
         //registerFatherDescriptor(param)

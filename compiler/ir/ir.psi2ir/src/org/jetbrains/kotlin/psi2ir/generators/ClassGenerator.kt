@@ -434,8 +434,13 @@ class ClassGenerator(
         }
 
         val descriptor = irClass.descriptor
-        if (descriptor.isCompanionObject && ReificationContext.getReificationContext<List<KotlinType>?>(descriptor.containingDeclaration, ReificationContext.ContextTypes.CACHE) != null) {
-            addReificationLocalCacheDeclarations(irClass, ktClassOrObject.psiOrParent.project)
+        if (descriptor.isCompanionObject) {
+            val cache = ReificationContext.getReificationContext<List<KotlinType>?>(descriptor.containingDeclaration, ReificationContext.ContextTypes.CACHE)
+            if (cache != null) {
+                if (cache.any{ isStaticType(it.arguments)}) {
+                    addReificationLocalCacheDeclarations(irClass, ktClassOrObject.psiOrParent.project)
+                }
+            }
         }
         // generate synthetic nested classes (including companion)
         irClass.descriptor
